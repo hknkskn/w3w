@@ -1,0 +1,13 @@
+[package]
+name = "Web3War"
+version = "1.0.0"
+authors = ["Web3War Team"]
+
+[addresses]
+web3war = "0xcaf6e8d1bfdf1ab274938b67b4b37b9fb533be505e0c4a380846bf6096d4b0c6"
+std = "0x1"
+supra_framework = "0x1"
+aptos_framework = "0x1"
+
+[dependencies]
+SupraFramework = { git = "https://github.com/Entropy-Foundation/aptos-core.git", subdir = "aptos-move/framework/supra-framework", rev = "dev" }

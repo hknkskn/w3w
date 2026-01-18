@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Remove number input arrows */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* eRepublik Glossy Tabs */
+.glossy-tab-blue {
+  background: linear-gradient(to bottom, #4a90e2 0%, #357abd 50%, #2868a8 51%, #1f5a99 100%);
+  border: 1px solid #1a4d7f;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glossy-tab-green {
+  background: linear-gradient(to bottom, #7bc043 0%, #6aae38 50%, #5f9d31 51%, #528c28 100%);
+  border: 1px solid #4a7d24;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 4px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 -1px 0 rgba(0, 0, 0, 0.3);
+}
+
+.glossy-header {
+  background: linear-gradient(to bottom, #f7f7f7 0%, #e8e8e8 50%, #d9d9d9 51%, #cccccc 100%);
+  border-bottom: 1px solid #aaa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
