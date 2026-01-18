@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
 import { motion } from 'framer-motion';
 import { Package, Tag, Plus, Minus, AlertCircle } from 'lucide-react';
@@ -8,10 +9,18 @@ import { Button } from '@/components/Button';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
 
 export function MarketSell() {
+    const searchParams = useSearchParams();
     const { inventory, listMarketItem } = useGameStore();
     const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
     const [quantity, setQuantity] = useState(1);
     const [price, setPrice] = useState(1);
+
+    useEffect(() => {
+        const preSelected = searchParams.get('item');
+        if (preSelected && inventory.some(i => i.id === preSelected)) {
+            setSelectedItemId(preSelected);
+        }
+    }, [searchParams, inventory]);
 
     const selectedItem = inventory.find(i => i.id === selectedItemId);
 

@@ -13,6 +13,11 @@ export const COUNTRY_CONFIG: Record<CountryId, { name: string, flag: string, col
     'FR': { name: 'France', flag: '/image/flags/Flag_of_France.svg', color: '#2563eb' }, // blue-600
 };
 
+export const COUNTRY_IDS: Record<CountryId, number> = {
+    'NG': 1, 'UA': 2, 'RU': 3, 'US': 4, 'TR': 5,
+    'IN': 6, 'ES': 7, 'PL': 8, 'BR': 9, 'FR': 10
+};
+
 export interface Battle {
     id: string;
     region: string;
@@ -92,6 +97,7 @@ export interface JobOffer {
     salary: number; // CRED
     positions: number;
     minSkill: number;
+    active: boolean;
 }
 
 export interface Company {
@@ -143,6 +149,7 @@ export interface Citizen {
     credits: number; // Main currency (Game CRED)
     walletBalance?: number; // On-Chain CRED Balance (Wallet)
     militaryUnitId?: number;
+    isAdmin?: boolean;
 }
 
 export interface TrainingInfo {

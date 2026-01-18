@@ -10,7 +10,7 @@ export default function JobMarketPage() {
     const [isLoading, setIsLoading] = useState(false);
 
     // Filter companies with active job offers
-    const hiringCompanies = companies.filter(c => c.jobOffer && c.jobOffer.positions > 0);
+    const hiringCompanies = companies.filter(c => c.jobOffer && c.jobOffer.active && c.jobOffer.positions > 0);
     const myEmployer = companies.find(c => c.id === user?.employerId);
 
     const handleApply = async (companyId: string) => {

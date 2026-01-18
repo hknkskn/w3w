@@ -11,7 +11,29 @@ interface SupraProvider {
 
 const RPC_URL = "https://rpc-testnet.supra.com";
 
+const TESTNET_CHAIN_ID = 6; // Supra Testnet Chain ID
+
 export const ContractService = {
+
+    /**
+     * Enforce Testnet Connection
+     */
+    enforceTestnet: async (): Promise<void> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const chainIdData = await provider.supra.getChainId();
+        const chainId = (chainIdData as any).chainId || chainIdData;
+
+        if (Number(chainId) !== TESTNET_CHAIN_ID) {
+            try {
+                await provider.supra.changeNetwork({ chainId: TESTNET_CHAIN_ID });
+            } catch (e) {
+                console.error("Failed to switch network:", e);
+                alert("Please switch your StarKey wallet to Supra Testnet!");
+                throw new Error("Incorrect network");
+            }
+        }
+    },
 
     /**
      * Checks if a user is registered by calling the view function `is_registered`
@@ -56,7 +78,10 @@ export const ContractService = {
         if (!provider.supra) throw new Error("StarKey Supra provider not found");
 
         try {
-            // 1. Fetch Chain ID and Account
+            // 1. Enforce Testnet
+            await ContractService.enforceTestnet();
+
+            // 2. Fetch Chain ID and Account
             let chainId = await provider.supra.getChainId();
             if (typeof chainId === 'object' && (chainId as any).chainId) {
                 chainId = (chainId as any).chainId;
@@ -159,15 +184,15 @@ export const ContractService = {
             // Map result array to object
             return {
                 id: result[0],
-                username: result[1],
-                citizenship: result[2],
-                level: result[3],
-                xp: result[4],
-                energy: result[5],
-                maxEnergy: result[6],
-                strength: result[7],
-                rankPoints: result[8],
-                credits: result[9],
+                username: result[1] ? (typeof result[1] === 'string' ? result[1] : "Citizen") : "Citizen",
+                citizenship: Number(result[2]),
+                level: Number(result[3]),
+                xp: Number(result[4]),
+                energy: Number(result[5]),
+                maxEnergy: Number(result[6]),
+                strength: Number(result[7]),
+                rankPoints: Number(result[8]),
+                credits: Number(result[9]),
                 employerId: result[10]
             };
         } catch (e) {
@@ -286,28 +311,34 @@ export const ContractService = {
                 })
             });
 
-            const result = await response.json();
-            if (!result || result.length === 0) return null;
+            const rawResult = await response.json();
+            console.log("getDashboardData RAW response:", rawResult);
 
-            // Map result: [level, xp, energy, max_energy, strength, rank_points, credits]
-            return {
-                level: result[0],
-                xp: result[1],
-                energy: result[2],
-                maxEnergy: result[3],
-                strength: result[4],
-                rankPoints: result[5],
-                credits: result[6]
+            // Handle both {result: [...]} and direct array formats
+            const result = rawResult?.result || rawResult;
+            console.log("getDashboardData parsed result:", result);
+
+            if (!result || !Array.isArray(result) || result.length === 0) {
+                console.warn("getDashboardData: No data or unexpected format");
+                return null;
+            }
+
+            // Map result: [level, xp, energy, strength, credits]
+            const data = {
+                level: Number(result[0] || 0),
+                xp: Number(result[1] || 0),
+                energy: Number(result[2] || 0),
+                strength: Number(result[3] || 0),
+                credits: Number(result[4] || 0)
             };
+            console.log("getDashboardData final data:", data);
+            return data;
         } catch (e) {
             console.error("Failed to fetch dashboard data:", e);
             return null;
         }
     },
 
-    /**
-     * Fetches all companies from the registry
-     */
     getAllCompanies: async () => {
         try {
             const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
@@ -321,25 +352,93 @@ export const ContractService = {
             });
 
             const result = await response.json();
-            if (!result || !result[0]) return [];
-            return result[0];
+            console.log("getAllCompanies RAW response:", result);
+            console.log("getAllCompanies result[0]:", result?.result?.[0] || result?.[0]);
+
+            // Handle both {result: [...]} and direct array formats
+            const companies = result?.result?.[0] || result?.[0];
+            if (!companies || !Array.isArray(companies)) {
+                return [];
+            }
+            return companies;
         } catch (e) {
             console.error("Failed to fetch companies:", e);
             return [];
         }
     },
 
-    /**
-     * Accept a job offer
-     */
-    takeJob: async (companyId: number): Promise<string> => {
+    // --- Company Functions ---
+
+    createCompany: async (name: string, type: number, regionId: number): Promise<string> => {
         if (!window.starkey) throw new Error("Wallet not found");
         const provider = window.starkey as any;
-
         const accounts = await provider.supra.account();
         if (!accounts || accounts.length === 0) throw new Error("No account connected");
         const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
 
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.COMPANY.split('::')[0],
+            WE3WAR_MODULES.COMPANY.split('::')[1],
+            "create_company",
+            [],
+            [
+                Array.from(BCS.bcsSerializeStr(name)),
+                Array.from(BCS.bcsSerializeU8(type)),
+                Array.from(BCS.bcsSerializeUint64(regionId))
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.COMPANY.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    postJobOffer: async (companyId: number, salary: number, positions: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        if (!accounts || accounts.length === 0) throw new Error("No account connected");
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.COMPANY.split('::')[0],
+            WE3WAR_MODULES.COMPANY.split('::')[1],
+            "post_job_offer",
+            [],
+            [
+                Array.from(BCS.bcsSerializeUint64(companyId)),
+                Array.from(BCS.bcsSerializeUint64(salary)),
+                Array.from(BCS.bcsSerializeUint64(positions))
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.COMPANY.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    takeJob: async (companyId: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        if (!accounts || accounts.length === 0) throw new Error("No account connected");
+        const sender = accounts[0];
         const chainId = await provider.supra.getChainId();
 
         const rawTxPayload = [
@@ -355,8 +454,6 @@ export const ContractService = {
         ];
 
         const data = await provider.supra.createRawTransactionData(rawTxPayload);
-        if (!data) throw new Error("Failed to create raw transaction data");
-
         return await provider.supra.sendTransaction({
             data,
             from: sender,
@@ -366,17 +463,12 @@ export const ContractService = {
         });
     },
 
-    /**
-     * Resign from current job
-     */
     resignJob: async (companyId: number): Promise<string> => {
         if (!window.starkey) throw new Error("Wallet not found");
         const provider = window.starkey as any;
-
         const accounts = await provider.supra.account();
         if (!accounts || accounts.length === 0) throw new Error("No account connected");
         const sender = accounts[0];
-
         const chainId = await provider.supra.getChainId();
 
         const rawTxPayload = [
@@ -406,7 +498,7 @@ export const ContractService = {
     /**
      * Perform work shift
      */
-    performWork: async (companyId: number, strength: number): Promise<string> => {
+    performWork: async (companyId: number): Promise<string> => {
         if (!window.starkey) throw new Error("Wallet not found");
         const provider = window.starkey as any;
         const accounts = await provider.supra.account();
@@ -417,11 +509,10 @@ export const ContractService = {
             sender, 0,
             WE3WAR_MODULES.COMPANY.split('::')[0],
             WE3WAR_MODULES.COMPANY.split('::')[1],
-            "perform_work",
+            "work",
             [],
             [
-                Array.from(BCS.bcsSerializeUint64(companyId)),
-                Array.from(BCS.bcsSerializeUint64(strength))
+                Array.from(BCS.bcsSerializeUint64(companyId))
             ],
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];
@@ -438,71 +529,7 @@ export const ContractService = {
         });
     },
 
-    createCompany: async (name: string, type: number, regionId: number): Promise<string> => {
-        if (!window.starkey) throw new Error("Wallet not found");
-        const provider = window.starkey as any;
-        const accounts = await provider.supra.account();
-        const sender = accounts[0];
-        const chainId = await provider.supra.getChainId();
 
-        const rawTxPayload = [
-            sender, 0,
-            WE3WAR_MODULES.COMPANY.split('::')[0],
-            WE3WAR_MODULES.COMPANY.split('::')[1],
-            "create_company",
-            [],
-            [
-                Array.from(BCS.bcsSerializeStr(name)),
-                Array.from(BCS.bcsSerializeU8(type)),
-                Array.from(BCS.bcsSerializeUint64(regionId))
-            ],
-            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
-        ];
-
-        const data = await provider.supra.createRawTransactionData(rawTxPayload);
-        if (!data) throw new Error("Failed to create raw transaction data");
-
-        return await provider.supra.sendTransaction({
-            data,
-            from: sender,
-            to: WE3WAR_MODULES.COMPANY.split('::')[0],
-            chainId: (chainId as any).chainId || chainId,
-            value: ""
-        });
-    },
-
-    postJobOffer: async (companyId: number, salary: number, positions: number): Promise<string> => {
-        if (!window.starkey) throw new Error("Wallet not found");
-        const provider = window.starkey as any;
-        const accounts = await provider.supra.account();
-        const sender = accounts[0];
-        const chainId = await provider.supra.getChainId();
-
-        const rawTxPayload = [
-            sender, 0,
-            WE3WAR_MODULES.COMPANY.split('::')[0],
-            WE3WAR_MODULES.COMPANY.split('::')[1],
-            "post_job_offer",
-            [],
-            [
-                Array.from(BCS.bcsSerializeUint64(companyId)),
-                Array.from(BCS.bcsSerializeUint64(salary)),
-                Array.from(BCS.bcsSerializeUint64(positions))
-            ],
-            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
-        ];
-
-        const data = await provider.supra.createRawTransactionData(rawTxPayload);
-        if (!data) throw new Error("Failed to create raw transaction data");
-
-        return await provider.supra.sendTransaction({
-            data,
-            from: sender,
-            to: WE3WAR_MODULES.COMPANY.split('::')[0],
-            chainId: (chainId as any).chainId || chainId,
-            value: ""
-        });
-    },
 
     depositCompanyFunds: async (companyId: number, amount: number): Promise<string> => {
         if (!window.starkey) throw new Error("Wallet not found");
@@ -625,6 +652,91 @@ export const ContractService = {
                 Array.from(BCS.bcsSerializeUint64(itemId)),
                 Array.from(BCS.bcsSerializeU8(quality))
             ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.BATTLE.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    declareWar: async (regionId: number, countryId: number, isTraining: boolean): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "declare_war",
+            [],
+            [
+                Array.from(BCS.bcsSerializeUint64(regionId)),
+                Array.from(BCS.bcsSerializeU8(countryId)),
+                Array.from(BCS.bcsSerializeBool(isTraining))
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.BATTLE.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    endRound: async (battleId: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "end_round",
+            [],
+            [Array.from(BCS.bcsSerializeUint64(battleId))],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.BATTLE.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    endBattle: async (battleId: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "end_battle",
+            [],
+            [Array.from(BCS.bcsSerializeUint64(battleId))],
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];
 
@@ -890,13 +1002,23 @@ export const ContractService = {
         const sender = accounts[0];
         const chainId = await provider.supra.getChainId();
 
+        const moduleAddr = WE3WAR_MODULES.TRAINING.split('::')[0];
+        const moduleName = WE3WAR_MODULES.TRAINING.split('::')[1];
+
+        console.log("Training Multi Call:", {
+            sender,
+            module: `${moduleAddr}::${moduleName}`,
+            regimenIds,
+            serializedArgs: [Array.from(BCS.bcsSerializeBytes(new Uint8Array(regimenIds)))]
+        });
+
         const rawTxPayload = [
             sender, 0,
-            WE3WAR_MODULES.TRAINING.split('::')[0],
-            WE3WAR_MODULES.TRAINING.split('::')[1],
+            moduleAddr,
+            moduleName,
             "train_multi",
             [],
-            [Array.from(BCS.bcsSerializeUint8Array(new Uint8Array(regimenIds)))],
+            [Array.from(BCS.bcsSerializeBytes(new Uint8Array(regimenIds)))],
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];
 
@@ -917,15 +1039,19 @@ export const ContractService = {
         const sender = accounts[0];
         const chainId = await provider.supra.getChainId();
 
+        console.log("Upgrade Training Grounds - regimenId:", regimenId);
+
         const rawTxPayload = [
             sender, 0,
             WE3WAR_MODULES.TRAINING.split('::')[0],
             WE3WAR_MODULES.TRAINING.split('::')[1],
             "upgrade_building",
             [],
-            [Array.from(BCS.bcsSerializeUint8(regimenId))],
+            [Array.from(BCS.bcsSerializeU8(regimenId))], // Properly serialize as u8
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];
+
+        console.log("Upgrade rawTxPayload:", rawTxPayload);
 
         const data = await provider.supra.createRawTransactionData(rawTxPayload);
         return await provider.supra.sendTransaction({
@@ -1007,32 +1133,75 @@ export const ContractService = {
 
 
     getTrainingInfo: async (address: string): Promise<any> => {
+        const functionPath = `${WE3WAR_MODULES.TRAINING}::get_training_info`;
         try {
+            console.log("Fetching Training Info from:", functionPath, "for address:", address);
             const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    function: `${WE3WAR_MODULES.TRAINING}::get_training_info`,
+                    function: functionPath,
                     arguments: [address],
                     type_arguments: []
                 })
             });
-            const result = await response.json();
+            const rawResult = await response.json();
+
+            console.log("RAW Training Info Response:", rawResult);
+            console.log("rawResult.result:", rawResult.result);
+            console.log("Type of rawResult:", typeof rawResult);
+            console.log("Is rawResult array:", Array.isArray(rawResult));
+
+            if (rawResult.message && rawResult.message.includes("can't be found")) {
+                console.error(`CRITICAL: Training Module NOT FOUND at ${WE3WAR_MODULES.TRAINING}. Please verify deployment.`);
+            }
+
+            // Handle both {result: []} and direct array formats
+            const result = rawResult.result || rawResult;
+            console.log("Extracted result:", result);
+            console.log("Is result array:", Array.isArray(result));
+            console.log("Result length:", result?.length);
 
             // Defensive: ensure result is an array and has expected elements
             if (!Array.isArray(result) || result.length < 3) {
-                console.warn("Training info format unexpected:", result);
+                console.warn("Training info format unexpected or missing - using fallback");
                 return {
                     qualities: [1, 1, 1, 1],
-                    last_train_time: 0,
-                    total_trains: 0
+                    lastTrainTime: 0,
+                    totalTrains: 0
                 };
             }
 
+            console.log("Training Info Parsed:", {
+                qualities: result[0],
+                lastTrainTime: parseInt(result[1]),
+                totalTrains: parseInt(result[2])
+            });
+
+            // Handle different quality array formats
+            let qualities: number[];
+            const rawQualities = result[0];
+
+            if (typeof rawQualities === 'string' && rawQualities.startsWith('0x')) {
+                // Hex string format: '0x01010101' -> [1, 1, 1, 1]
+                const hexStr = rawQualities.slice(2); // remove '0x'
+                qualities = [];
+                for (let i = 0; i < hexStr.length; i += 2) {
+                    qualities.push(parseInt(hexStr.slice(i, i + 2), 16));
+                }
+                console.log("Parsed qualities from hex:", qualities);
+            } else if (Array.isArray(rawQualities)) {
+                qualities = rawQualities.map((q: any) => parseInt(q));
+            } else if (typeof rawQualities === 'object' && rawQualities !== null) {
+                qualities = Object.values(rawQualities).map((q: any) => parseInt(q));
+            } else {
+                qualities = [1, 1, 1, 1];
+            }
+
             return {
-                qualities: result[0], // vector<u8>
-                last_train_time: parseInt(result[1]),
-                total_trains: parseInt(result[2])
+                qualities,
+                lastTrainTime: parseInt(result[1]),
+                totalTrains: parseInt(result[2])
             };
         } catch (e) {
             console.error("Failed to fetch training info:", e);
@@ -1041,26 +1210,40 @@ export const ContractService = {
     },
 
     getTrainingPricing: async (): Promise<any> => {
+        const functionPath = `${WE3WAR_MODULES.TRAINING}::get_training_pricing`;
         try {
+            console.log("Fetching Training Pricing from:", functionPath);
             const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    function: `${WE3WAR_MODULES.TRAINING}::get_training_pricing`,
+                    function: functionPath,
                     arguments: [],
                     type_arguments: []
                 })
             });
-            const result = await response.json();
+            const rawResult = await response.json();
+
+            if (rawResult.message && rawResult.message.includes("can't be found")) {
+                console.error(`CRITICAL: Training Module NOT FOUND at ${WE3WAR_MODULES.TRAINING}. Please verify deployment.`);
+            }
+
+            // Handle both {result: []} and direct array formats
+            const result = rawResult.result || rawResult;
 
             // Defensive: ensure result is an array and has expected elements
             if (!Array.isArray(result) || result.length < 2) {
-                console.warn("Training pricing format unexpected, using fallbacks:", result);
+                console.warn("Training pricing format unexpected, using fallbacks:", rawResult);
                 return {
                     upgradeCosts: [250000000000, 500000000000, 1000000000000, 2000000000000],
                     regimenCosts: [19, 89, 179]
                 };
             }
+
+            console.log("Training Pricing Parsed:", {
+                upgradeCosts: result[0],
+                regimenCosts: result[1]
+            });
 
             return {
                 upgradeCosts: result[0].map((c: string) => parseInt(c)),
@@ -1084,8 +1267,14 @@ export const ContractService = {
                 })
             });
 
-            const result = await response.json();
+            const rawResult = await response.json();
+            console.log("getMarketListingsByCategory RAW response:", rawResult);
+
+            // Handle both {result: [...]} and direct array formats
+            const result = rawResult?.result || rawResult;
+
             if (result && Array.isArray(result) && result.length > 0) {
+                console.log("getMarketListingsByCategory listings:", result[0]);
                 return result[0];
             }
             return [];
@@ -1145,7 +1334,37 @@ export const ContractService = {
         }
     },
 
-    endRound: async (battleId: number): Promise<string> => {
+    // --- Admin Functions ---
+
+    isAdmin: async (addr: string): Promise<boolean> => {
+        try {
+            const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    function: `${WE3WAR_MODULES.ADMIN}::is_admin`,
+                    type_arguments: [],
+                    arguments: [addr]
+                })
+            });
+
+            const result = await response.json();
+            console.log("Admin check result:", result);
+
+            if (result && Array.isArray(result)) {
+                return result[0] === true;
+            }
+            if (result && result.result && Array.isArray(result.result)) {
+                return result.result[0] === true;
+            }
+            return false;
+        } catch (e) {
+            console.error("Error checking admin status:", e);
+            return false;
+        }
+    },
+
+    initializeAdminRegistry: async (): Promise<string> => {
         if (!window.starkey) throw new Error("Wallet not found");
         const provider = window.starkey as any;
         const accounts = await provider.supra.account();
@@ -1154,11 +1373,11 @@ export const ContractService = {
 
         const rawTxPayload = [
             sender, 0,
-            WE3WAR_MODULES.BATTLE.split('::')[0],
-            WE3WAR_MODULES.BATTLE.split('::')[1],
-            "end_round",
+            WE3WAR_MODULES.ADMIN.split('::')[0],
+            WE3WAR_MODULES.ADMIN.split('::')[1],
+            "initialize_registry",
             [],
-            [Array.from(BCS.bcsSerializeUint64(battleId))],
+            [],
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];
 
@@ -1166,11 +1385,110 @@ export const ContractService = {
         return await provider.supra.sendTransaction({
             data,
             from: sender,
-            to: WE3WAR_MODULES.BATTLE.split('::')[0],
+            to: WE3WAR_MODULES.ADMIN.split('::')[0],
             chainId: (chainId as any).chainId || chainId,
             value: ""
         });
     },
+
+    mintCredits: async (target: string, amount: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        // For address type: pass as string directly
+        // For u64 type: BCS serialize
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.CITIZEN.split('::')[0],
+            WE3WAR_MODULES.CITIZEN.split('::')[1],
+            "mint_credits",
+            [],
+            [
+                target, // address passed as string
+                Array.from(BCS.bcsSerializeUint64(BigInt(amount * 100))) // u64 scaled by 100 (2 decimals)
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        console.log("mintCredits Payload:", rawTxPayload);
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.CITIZEN.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    addEnergy: async (target: string, amount: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.CITIZEN.split('::')[0],
+            WE3WAR_MODULES.CITIZEN.split('::')[1],
+            "add_energy",
+            [],
+            [
+                target, // address passed as string
+                Array.from(BCS.bcsSerializeUint64(BigInt(amount))) // u64
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        console.log("addEnergy Payload:", rawTxPayload);
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.CITIZEN.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
+    mintItem: async (target: string, itemId: number, category: number, quality: number, quantity: number): Promise<string> => {
+        if (!window.starkey) throw new Error("Wallet not found");
+        const provider = window.starkey as any;
+        const accounts = await provider.supra.account();
+        const sender = accounts[0];
+        const chainId = await provider.supra.getChainId();
+
+        const rawTxPayload = [
+            sender, 0,
+            WE3WAR_MODULES.ADMIN.split('::')[0],
+            WE3WAR_MODULES.ADMIN.split('::')[1],
+            "mint_item",
+            [],
+            [
+                target, // address passed as string
+                Array.from(BCS.bcsSerializeUint64(itemId)),
+                Array.from(BCS.bcsSerializeU8(category)),
+                Array.from(BCS.bcsSerializeU8(quality)),
+                Array.from(BCS.bcsSerializeUint64(quantity))
+            ],
+            { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
+        ];
+
+        console.log("mintItem Payload:", rawTxPayload);
+        const data = await provider.supra.createRawTransactionData(rawTxPayload);
+        return await provider.supra.sendTransaction({
+            data,
+            from: sender,
+            to: WE3WAR_MODULES.ADMIN.split('::')[0],
+            chainId: (chainId as any).chainId || chainId,
+            value: ""
+        });
+    },
+
     // --- Governance Functions ---
 
     getCountryData: async (countryId: number): Promise<any> => {
@@ -1334,7 +1652,7 @@ export const ContractService = {
             [
                 Array.from(BCS.bcsSerializeU8(countryId)),
                 Array.from(BCS.bcsSerializeU8(type)),
-                Array.from(BCS.bcsSerializeUint8Array(new Uint8Array(dataBytes)))
+                Array.from(BCS.bcsSerializeBytes(new Uint8Array(dataBytes)))
             ],
             { txExpiryTime: Math.floor(Date.now() / 1000) + 300 }
         ];

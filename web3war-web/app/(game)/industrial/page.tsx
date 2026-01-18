@@ -31,7 +31,12 @@ export default function IndustrialPage() {
     const [newCompanyName, setNewCompanyName] = useState('');
     const [newCompanyType, setNewCompanyType] = useState<CompanyType>('RAW_GRAIN');
 
-    const userCompanies = companies.filter(c => c.ownerId === user?.id || c.ownerId === user?.walletAddress);
+    const userCompanies = companies.filter(c => {
+        const ownerLower = c.ownerId?.toLowerCase();
+        const userIdLower = user?.id?.toLowerCase();
+        const walletLower = user?.walletAddress?.toLowerCase();
+        return ownerLower === userIdLower || ownerLower === walletLower;
+    });
     const selectedCompany = companies.find(c => c.id === selectedCompanyId);
 
     const handleCreate = async () => {
@@ -209,7 +214,9 @@ export default function IndustrialPage() {
 
                             <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
                                 <span className="text-slate-400 text-sm">Initial Investment:</span>
-                                <span className="float-right text-emerald-400 font-mono font-bold">1000.00 SUPRA</span>
+                                <span className={`float-right font-mono font-bold ${user?.isAdmin ? 'text-cyan-400 animate-pulse' : 'text-emerald-400'}`}>
+                                    {user?.isAdmin ? 'FREE (ADMIN)' : '1000.00 SUPRA'}
+                                </span>
                             </div>
 
                             <div className="flex gap-3 mt-6">

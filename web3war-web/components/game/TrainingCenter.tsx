@@ -75,9 +75,9 @@ export function TrainingCenter() {
         return trainingPricing.regimenCosts[id - 1] / 100;
     };
 
-    const totalCost = selectedIds.reduce((sum, id) => sum + getRegimenCost(id), 0);
+    const totalCost = user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => sum + getRegimenCost(id), 0);
 
-    const totalEnergy = selectedIds.reduce((sum, id) => {
+    const totalEnergy = user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => {
         const item = REGIMEN_DATA.find(r => r.id === id);
         return sum + (item?.baseEnergy || 0);
     }, 0);
@@ -90,8 +90,16 @@ export function TrainingCenter() {
 
     const totalStrength = selectedIds.reduce((sum, id) => sum + getRegimenStrength(id), 0);
 
+    const lastTrain = Number(trainingInfo?.lastTrainTime || 0);
+    const now = Math.floor(Date.now() / 1000);
+    const cooldownActive = !user?.isAdmin && lastTrain > 0 && now < lastTrain + 86400;
+    const timeRemaining = Math.max(0, (lastTrain + 86400) - now);
+    const hoursRemaining = Math.floor(timeRemaining / 3600);
+    const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+
     const handleTrain = async () => {
         if (selectedIds.length === 0) return;
+        if (cooldownActive) return;
 
         const regimensToProcess = selectedIds.map(id => {
             const data = REGIMEN_DATA.find(r => r.id === id)!;
@@ -217,7 +225,7 @@ export function TrainingCenter() {
                                                     className="shrink-0 flex items-center gap-1.5 px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-[9px] font-black text-white rounded-md border border-emerald-400/30 transition-all hover:scale-105 active:scale-95 shadow-lg group/upg"
                                                 >
                                                     <ArrowUpCircle size={10} fill="currentColor" className="text-emerald-950" />
-                                                    <span>UPGRADE ({((trainingPricing?.upgradeCosts[quality - 1] || 250000000000) / 100000000).toLocaleString()} S)</span>
+                                                    <span>UPGRADE ({user?.isAdmin ? 'FREE' : `${((trainingPricing?.upgradeCosts[quality - 1] || 250000000000) / 100000000).toLocaleString()} S`})</span>
                                                 </button>
                                             )}
                                         </div>
@@ -244,13 +252,15 @@ export function TrainingCenter() {
                                 </div>
 
                                 <div className="col-span-3 flex flex-col items-center">
-                                    {cost > 0 ? (
+                                    {cost > 0 && !user?.isAdmin ? (
                                         <div className="flex items-center gap-1.5">
                                             <Coins size={14} className="text-amber-500" />
                                             <span className="text-lg font-mono text-amber-400 font-bold">{cost.toFixed(2)} CRED</span>
                                         </div>
                                     ) : (
-                                        <span className="text-sm font-black text-emerald-400 uppercase tracking-widest px-3 py-1 bg-emerald-500/10 rounded-lg">Free</span>
+                                        <span className="text-sm font-black text-emerald-400 uppercase tracking-widest px-3 py-1 bg-emerald-500/10 rounded-lg">
+                                            {user?.isAdmin ? 'ADMIN FREE' : 'Free'}
+                                        </span>
                                     )}
                                 </div>
 
@@ -301,11 +311,11 @@ export function TrainingCenter() {
 
                     <Button
                         onClick={handleTrain}
-                        disabled={selectedIds.length === 0 || isTraining}
-                        className={`min-w-[200px] h-14 text-lg font-black tracking-widest uppercase transition-all shadow-glow ${isTraining ? 'bg-slate-700 animate-pulse' : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500'
-                            }`}
+                        disabled={selectedIds.length === 0 || isTraining || cooldownActive}
+                        className={`min-w-[200px] h-14 text-lg font-black tracking-widest uppercase transition-all shadow-glow ${isTraining || cooldownActive ? 'bg-slate-700' : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500'
+                            } ${isTraining ? 'animate-pulse' : ''}`}
                     >
-                        {isTraining ? 'Developing Muscle...' : 'Start Training'}
+                        {isTraining ? 'Developing Muscle...' : (cooldownActive ? `Cooldown: ${hoursRemaining}h ${minutesRemaining}m` : 'Start Training')}
                     </Button>
                 </div>
             </div>

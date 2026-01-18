@@ -6,14 +6,34 @@ export interface CompanySlice {
     companies: Company[];
     fetchCompanies: () => Promise<void>;
     createCompany: (name: string, type: CompanyType) => void;
-    postJob: (companyId: string, salary: number, positions: number) => void;
+    postJob: (companyId: string, salary: number, positions: number) => Promise<void>;
     applyForJob: (companyId: string) => Promise<void>;
     resignJob: () => Promise<void>;
     work: () => Promise<void>;
+    depositCompanyFunds: (companyId: string, amount: number) => void;
     withdrawCompanyProduct: (companyId: string, amount: number) => void;
     depositCompanyRaw: (companyId: string, itemId: string, amount: number) => void;
     upgradeCompanyQuality: (companyId: string) => Promise<void>;
 }
+
+// Helper to parse Move strings (hex or byte array)
+const parseMoveString = (value: any) => {
+    if (typeof value === 'string') {
+        if (value.startsWith('0x')) {
+            const hex = value.slice(2);
+            let str = '';
+            for (let i = 0; i < hex.length; i += 2) {
+                str += String.fromCharCode(parseInt(hex.substring(i, i + 2), 16));
+            }
+            return str;
+        }
+        return value;
+    }
+    if (Array.isArray(value)) {
+        return String.fromCharCode(...value);
+    }
+    return '';
+};
 
 export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> = (set, get) => ({
     companies: [],
@@ -26,7 +46,7 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
             const mappedCompanies: Company[] = chainCompanies.map((c: any) => ({
                 id: `co_${c.id}`,
                 ownerId: c.owner,
-                name: String.fromCharCode(...c.name),
+                name: parseMoveString(c.name),
                 type: c.co_type === 1 ? 'RAW_GRAIN'
                     : c.co_type === 2 ? 'RAW_IRON'
                         : c.co_type === 3 ? 'RAW_OIL'
@@ -46,9 +66,10 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
                 jobOffer: {
                     id: `job_${c.id}`,
                     companyId: `co_${c.id}`,
-                    companyName: String.fromCharCode(...c.name),
+                    companyName: parseMoveString(c.name),
                     salary: Number(c.job_offer.salary),
                     positions: Number(c.job_offer.open_positions),
+                    active: Boolean(c.job_offer.active), // Fixed: Mapping the active field
                     minSkill: 0
                 },
                 rawStock: Number(c.raw_stock),
@@ -99,23 +120,20 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
         }
     },
 
-    postJob: (companyId, salary, positions) => {
-        // Mock implementation
-        set((state) => ({
-            companies: state.companies.map(c =>
-                c.id === companyId ? {
-                    ...c,
-                    jobOffer: {
-                        id: `job_${Date.now()}`,
-                        companyId,
-                        companyName: c.name,
-                        salary,
-                        positions,
-                        minSkill: 0
-                    }
-                } : c
-            )
-        }));
+    postJob: async (companyId, salary, positions) => {
+        try {
+            const numericId = Number(companyId.replace('co_', ''));
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.postJobOffer(numericId, salary, positions);
+
+            if (tx) {
+                alert("Job offer posted! Waiting for confirmation...");
+                setTimeout(() => get().fetchCompanies(), 4000);
+            }
+        } catch (e) {
+            console.error("Post job failed:", e);
+            alert("Failed to post job offer.");
+        }
     },
 
     applyForJob: async (companyId) => {
@@ -179,10 +197,9 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
             }
 
             const numericId = Number(String(user.employerId).replace('co_', ''));
-            const strength = Math.floor(user.strength);
 
             const { ContractService } = await import('../contract-service');
-            const tx = await ContractService.performWork(numericId, strength);
+            const tx = await ContractService.performWork(numericId);
 
             if (tx) {
                 alert("Work Shift Complete! Salary + XP earned.");
@@ -263,6 +280,22 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
         } catch (e) {
             console.error("Deposit failed:", e);
             alert("Failed to deposit raw materials.");
+        }
+    },
+
+    depositCompanyFunds: async (companyId, amount) => {
+        try {
+            const numericId = Number(companyId.replace('co_', ''));
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.depositCompanyFunds(numericId, amount);
+
+            if (tx) {
+                alert("Funds deposited! Waiting for confirmation...");
+                setTimeout(() => get().fetchCompanies(), 4000);
+            }
+        } catch (e) {
+            console.error("Deposit funds failed:", e);
+            alert("Failed to deposit funds.");
         }
     },
 

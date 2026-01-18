@@ -20,26 +20,33 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
     roundHistory: {},
     alliances: [],
 
-    declareWar: (regionId, isTraining) => {
-        const state = get();
-        if (!state.user) return;
+    declareWar: async (regionId, isTraining) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const state = get();
+            if (!state.user) return;
 
-        const newBattle: Battle = {
-            id: `b_${Date.now()}`,
-            region: `Region ${regionId}`,
-            regionId,
-            attacker: state.user.citizenship,
-            defender: 'BG',
-            startTime: Date.now(),
-            endTime: Date.now() + (isTraining ? 1000 * 60 * 60 : 1000 * 60 * 60 * 4),
-            attackerDamage: 0,
-            defenderDamage: 0,
-            wallPercentage: 50,
-            isTraining
-        };
+            // Map citizenship to country code (needs mapping or direct number)
+            const countryCode = state.user.citizenship === 'NG' ? 1 :
+                state.user.citizenship === 'UA' ? 2 :
+                    state.user.citizenship === 'RU' ? 3 :
+                        state.user.citizenship === 'US' ? 4 :
+                            state.user.citizenship === 'TR' ? 5 :
+                                state.user.citizenship === 'IN' ? 6 :
+                                    state.user.citizenship === 'ES' ? 7 :
+                                        state.user.citizenship === 'PL' ? 8 :
+                                            state.user.citizenship === 'BR' ? 9 :
+                                                state.user.citizenship === 'FR' ? 10 : 0;
 
-        set({ activeBattles: [...state.activeBattles, newBattle] });
-        alert(`${isTraining ? 'Training' : 'War'} started in Region ${regionId}!`);
+            const tx = await ContractService.declareWar(regionId, countryCode, isTraining);
+            if (tx) {
+                alert(`${isTraining ? 'Training' : 'War'} declaration sent! Waiting for confirmation...`);
+                setTimeout(() => get().fetchBattles(), 4000);
+            }
+        } catch (e) {
+            console.error("Declare war error:", e);
+            alert("Failed to declare war.");
+        }
     },
 
     startResistanceWar: (regionId) => {

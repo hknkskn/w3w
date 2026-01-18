@@ -30,6 +30,9 @@ export interface UserSlice {
     joinMilitaryUnit: (unitId: number) => Promise<void>;
     setDailyOrder: (regionId: number) => Promise<void>;
     fetchDashboardData: () => Promise<void>;
+    mintCredits: (target: string, amount: number) => Promise<void>;
+    addEnergy: (target: string, amount: number) => Promise<void>;
+    mintItem: (target: string, itemId: number, category: number, quality: number, quantity: number) => Promise<void>;
 }
 
 export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set, get) => ({
@@ -41,7 +44,7 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
         // Mock User Structure Initial - Real data will come from fetchProfile
         // But we need to set initial state fast
         const userState: Citizen = {
-            id: 'user_temp',
+            id: walletAddress, // Use wallet address as user ID for ownership matching
             username,
             walletAddress,
             citizenship: country,
@@ -66,9 +69,23 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             // 1. Fetch Aggregated Profile (Simulation Stats)
             const dashboardData = await ContractService.getDashboardData(walletAddress);
 
+            // Try to fetch employer ID separately (safely)
+            let employerId = undefined;
+            try {
+                const profile = await ContractService.getProfile(walletAddress);
+                if (profile && Number(profile.employerId) > 0) {
+                    employerId = `co_${profile.employerId}`;
+                }
+            } catch (e) {
+                console.warn("Failed to fetch extra profile info:", e);
+            }
+
             // 2. Fetch Wallet Balances
             const credBalance = await ContractService.getCoinBalance(walletAddress);
             const supraBalance = await ContractService.getSupraBalance(walletAddress);
+
+            // 3. Check Admin Status
+            const isAdmin = await ContractService.isAdmin(walletAddress);
 
             set((state) => ({
                 user: {
@@ -78,9 +95,11 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
                         xp: Number(dashboardData.xp),
                         energy: Number(dashboardData.energy),
                         strength: Number(dashboardData.strength),
-                        credits: credBalance // Use CRED balance from chain
+                        credits: credBalance
                     } : {}),
-                    walletBalance: supraBalance // SUPRA balance
+                    employerId: employerId,
+                    walletBalance: supraBalance, // SUPRA balance
+                    isAdmin: !!isAdmin
                 }
             }));
 
@@ -261,6 +280,15 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             const credBalance = await ContractService.getCoinBalance(user.walletAddress);
             const supraBalance = await ContractService.getSupraBalance(user.walletAddress);
 
+            // Try to refresh employer ID separately
+            let employerId = get().user?.employerId; // Keep existing by default
+            try {
+                const profile = await ContractService.getProfile(user.walletAddress);
+                if (profile) {
+                    employerId = Number(profile.employerId) > 0 ? `co_${profile.employerId}` : undefined;
+                }
+            } catch (e) { console.warn("Profile fetch failed in dashboard update", e); }
+
             if (dashboardData) {
                 set((state) => ({
                     user: {
@@ -269,13 +297,48 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
                         xp: Number(dashboardData.xp),
                         energy: Number(dashboardData.energy),
                         strength: Number(dashboardData.strength),
+                        employerId,
                         credits: credBalance,
                         walletBalance: supraBalance
                     }
                 }));
             }
         } catch (e) {
-            console.error("Fetch dashboard data error:", e);
+            console.error("Dashboard fetch error:", e);
+        }
+    },
+
+    mintCredits: async (target, amount) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            await ContractService.mintCredits(target, amount);
+            await get().fetchDashboardData();
+        } catch (e) {
+            console.error("Mint credits error:", e);
+        }
+    },
+
+    addEnergy: async (target, amount) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            await ContractService.addEnergy(target, amount);
+            await get().fetchDashboardData();
+        } catch (e) {
+            console.error("Add energy error:", e);
+        }
+    },
+
+    mintItem: async (target, itemId, category, quality, quantity) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            await ContractService.mintItem(target, itemId, category, quality, quantity);
+
+            // Refresh inventory if self-minting
+            if (target === get().user?.walletAddress) {
+                await get().fetchInventory();
+            }
+        } catch (e) {
+            console.error("Mint item error:", e);
         }
     }
 });

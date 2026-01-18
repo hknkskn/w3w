@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
-import { MarketItem, CountryId } from '../types';
+import { MarketItem, CountryId, COUNTRY_IDS } from '../types';
 
 export interface MarketSlice {
     marketItems: MarketItem[];
@@ -11,6 +11,8 @@ export interface MarketSlice {
     cancelMarketListing: (listingId: string) => void;
     buyItem: (itemId: string, quantity: number) => void;
 }
+
+const CRED_DECIMALS = 100_000_000;
 
 export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (set, get) => ({
     marketItems: [],
@@ -46,7 +48,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
                             name: `${name} Q${l.item_type.quality}`,
                             quality: l.item_type.quality,
                             stock: Number(l.quantity),
-                            price: Number(l.price_per_unit),
+                            price: Number(l.price_per_unit) / CRED_DECIMALS, // Convert to CRED
                             seller: l.seller,
                             sellerCountry: sellerCountries[Math.floor(Math.random() * sellerCountries.length)],
                             category: cat === 1 ? 'food' : cat === 2 ? 'weapons' : cat === 3 ? 'raw' : 'tickets',
@@ -102,7 +104,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
                     name: `${name} Q${l.item_type?.quality || 1}`,
                     quality: l.item_type?.quality || 1,
                     stock: Number(l.quantity),
-                    price: Number(l.price_per_unit),
+                    price: Number(l.price_per_unit) / CRED_DECIMALS, // Convert to CRED
                     seller: l.seller,
                     category: 'my',
                     type: 'listed',
@@ -135,18 +137,25 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             else if (numericId >= 101 && numericId <= 104) category = 3; // Raw
             else if (numericId === 203) category = 4; // Ticket
 
+            const priceOnChain = Math.floor(pricePerUnit * CRED_DECIMALS);
+            const userCountry = state.user?.citizenship || 'TR';
+            const countryId = COUNTRY_IDS[userCountry] || 1;
+
             await ContractService.listMarketItem(
                 numericId,
                 category,
                 item.quality,
                 quantity,
-                pricePerUnit,
-                1 // TODO: Dynamic Country ID
+                priceOnChain,
+                countryId
             );
 
             // Optimistic Update
-            state.fetchMarketItems();
-            state.fetchInventory();
+            setTimeout(() => {
+                state.fetchMyListings();
+                state.fetchInventory();
+            }, 3000);
+
             alert("Listing transaction sent!");
 
         } catch (e) {

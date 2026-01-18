@@ -8,6 +8,7 @@ import { SocialFeed } from '@/components/game/SocialFeed';
 import { NewspaperWidget } from '@/components/game/NewspaperWidget';
 import { DailyTasksWidget } from '@/components/game/DailyTasksWidget';
 import { InventoryWidget } from '@/components/game/InventoryWidget';
+import { AdminToolkit } from '@/components/game/AdminToolkit';
 import {
     MapPin, Calendar, Swords, Mail, Trophy,
     Shield, Zap, TrendingUp, Award, Heart, Coins, Star,
@@ -50,6 +51,7 @@ export default function DashboardPage() {
                         <QuickLink icon={<span>🏗️</span>} label="Industrial Center" href="/industrial" />
                         <QuickLink icon={<Briefcase size={14} />} label="Companies" href="/companies" />
                     </div>
+                    <AdminToolkit />
                 </div>
 
                 {/* Center Column - Personal Progress & Economy */}

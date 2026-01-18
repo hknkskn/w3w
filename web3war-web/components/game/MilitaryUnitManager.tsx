@@ -25,7 +25,7 @@ export default function MilitaryUnitManager() {
                     {/* Create Section */}
                     <div className="bg-slate-800/50 p-6 rounded-xl border border-blue-500/20">
                         <h3 className="text-lg font-semibold mb-4">Start a New Unit</h3>
-                        <p className="text-sm text-slate-400 mb-4">Lead your own elite squad. Cost: 1000 CRED</p>
+                        <p className="text-sm text-slate-400 mb-4">Lead your own elite squad. Cost: {user.isAdmin ? <span className="text-cyan-400 font-bold uppercase animate-pulse">FREE (ADMIN)</span> : '1000 CRED'}</p>
                         <div className="flex gap-2">
                             <input
                                 type="text"

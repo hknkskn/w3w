@@ -24,8 +24,13 @@ interface CompanyManagerProps {
 }
 
 export function CompanyManager({ company }: CompanyManagerProps) {
-    const { withdrawCompanyProduct, depositCompanyRaw, inventory } = useGameStore();
+    const { user, withdrawCompanyProduct, depositCompanyRaw, inventory, depositCompanyFunds, postJob } = useGameStore();
     const [view, setView] = useState<'overview' | 'logistics' | 'employees'>('overview');
+
+    // Job Offer Form State
+    const [isPostingJob, setIsPostingJob] = useState(false);
+    const [jobSalary, setJobSalary] = useState(company.jobOffer?.salary || 10);
+    const [jobPositions, setJobPositions] = useState(5);
 
     const config = COMPANY_TYPES_CONFIG[company.type];
     const isMfg = company.type.includes('MFG');
@@ -91,11 +96,11 @@ export function CompanyManager({ company }: CompanyManagerProps) {
                                                 onClick={() => useGameStore.getState().upgradeCompanyQuality(company.id)}
                                                 variant="outline"
                                                 size="sm"
-                                                className="mt-4 w-full h-8 text-[10px] border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 font-black tracking-widest"
+                                                className={`mt-4 w-full h-8 text-[10px] border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 font-black tracking-widest ${user?.isAdmin ? 'border-cyan-400/50' : ''}`}
                                                 disabled={company.quality >= 5}
                                             >
                                                 <TrendingUp size={12} className="mr-2" />
-                                                {company.quality >= 5 ? 'MAX QUALITY' : `UPGRADE TO Q${company.quality + 1} (${cost}.0 SUPRA)`}
+                                                {company.quality >= 5 ? 'MAX QUALITY' : `UPGRADE TO Q${company.quality + 1} (${user?.isAdmin ? 'FREE - ADMIN' : `${cost}.0 SUPRA`})`}
                                             </Button>
                                         );
                                     })()}
@@ -105,7 +110,17 @@ export function CompanyManager({ company }: CompanyManagerProps) {
                                     <div className="text-2xl font-black text-emerald-400 font-mono">
                                         {company.funds.toFixed(2)} CRED
                                     </div>
-                                    <Button variant="outline" size="sm" className="mt-2 h-7 text-[9px] border-emerald-500/20 text-emerald-400">
+                                    <Button
+                                        onClick={() => {
+                                            const amount = prompt("Enter amount of CRED to deposit from your profile:");
+                                            if (amount && !isNaN(Number(amount))) {
+                                                depositCompanyFunds(company.id, Number(amount));
+                                            }
+                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-2 h-7 text-[9px] border-emerald-500/20 text-emerald-400"
+                                    >
                                         <PlusCircle size={10} className="mr-1" /> Deposit Funds
                                     </Button>
                                     <p className="text-[8px] text-slate-500 mt-3 italic uppercase font-bold">Needed for daily salaries</p>
@@ -203,10 +218,54 @@ export function CompanyManager({ company }: CompanyManagerProps) {
                                 )}
                             </div>
 
+                            {isPostingJob ? (
+                                <div className="bg-slate-800/80 rounded-xl p-4 border border-cyan-500/30 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-black uppercase">Daily Salary</label>
+                                            <input
+                                                type="number"
+                                                value={jobSalary}
+                                                onChange={(e) => setJobSalary(Number(e.target.value))}
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-emerald-400 font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] text-slate-500 font-black uppercase">Positions</label>
+                                            <input
+                                                type="number"
+                                                value={jobPositions}
+                                                onChange={(e) => setJobPositions(Number(e.target.value))}
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" className="flex-1 h-9 text-xs" onClick={() => setIsPostingJob(false)}>Cancel</Button>
+                                        <Button className="flex-1 bg-cyan-600 hover:bg-cyan-500 h-9 text-xs" onClick={() => {
+                                            postJob(company.id, jobSalary, jobPositions);
+                                            setIsPostingJob(false);
+                                        }}>Post Job Offer</Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-900/40 rounded-xl border border-dashed border-slate-700 p-4 text-center">
+                                    <p className="text-[10px] text-slate-500 mb-3 italic">Currently hiring? Post a job offer to find employees.</p>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setIsPostingJob(true)}
+                                        className="h-8 text-[10px] border-cyan-500/30 text-cyan-400 font-black uppercase w-full"
+                                    >
+                                        <PlusCircle size={14} className="mr-2" />
+                                        {company.jobOffer?.active ? 'Update Job Offer' : 'Post New Job Offer'}
+                                    </Button>
+                                </div>
+                            )}
+
                             {/* Resign Button - Only show if owner is employed here */}
                             <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-4">
                                 <h4 className="text-xs font-black text-red-400 uppercase tracking-widest mb-2">Leave Job</h4>
-                                <p className="text-[10px] text-slate-400 mb-3">If you are employed at this company, you can resign. This action is irreversible.</p>
+                                <p className="text-[10px] text-slate-400 mb-3">If you are employed at this company, you can resign.</p>
                                 <Button
                                     onClick={() => useGameStore.getState().resignJob()}
                                     variant="outline"

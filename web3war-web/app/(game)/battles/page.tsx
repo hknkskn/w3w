@@ -21,6 +21,7 @@ export default function BattlesPage() {
         fetchBattles,
         fetchRoundHistory,
         fight,
+        declareWar,
         fetchDashboardData
     } = useGameStore();
 
@@ -32,6 +33,8 @@ export default function BattlesPage() {
     const [screenShake, setScreenShake] = useState(false);
     const [isDemoMode, setIsDemoMode] = useState(false);
     const [combatLog, setCombatLog] = useState<{ id: string, text: string, type: 'hit' | 'info' | 'critical' }[]>([]);
+    const [warRegionId, setWarRegionId] = useState("");
+    const [isTrainingWar, setIsTrainingWar] = useState(true);
     const { particles, spawnParticles } = useParticles();
     const { inventory } = useGameStore();
 
@@ -448,6 +451,74 @@ export default function BattlesPage() {
                                     )}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* War Council (President Only - Simulation for now) */}
+                <div className="bg-slate-900/40 rounded-xl border border-red-500/20 p-6 shadow-2xl backdrop-blur-md">
+                    <div className="flex items-center gap-3 mb-6">
+                        <Swords className="text-red-500" />
+                        <h2 className="text-xl font-bold uppercase tracking-widest text-red-100">War Council</h2>
+                        <div className="bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20 uppercase">
+                            Presidential Authorization Required
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                As a leader, you have the authority to initiate military operations. Training wars help operatives gain XP without territorial loss, while real wars can expand your country's borders.
+                            </p>
+                            <div className="flex flex-col gap-4 max-w-sm">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Region ID</label>
+                                    <input
+                                        type="number"
+                                        value={warRegionId}
+                                        onChange={(e) => setWarRegionId(e.target.value)}
+                                        placeholder="Enter Region ID (e.g. 1-100)"
+                                        className="w-full bg-black/40 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:border-red-500/50 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex items-center gap-6">
+                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                        <input
+                                            type="radio"
+                                            checked={isTrainingWar}
+                                            onChange={() => setIsTrainingWar(true)}
+                                            className="w-4 h-4 accent-red-500"
+                                        />
+                                        <span className={`text-xs font-bold uppercase tracking-wider ${isTrainingWar ? 'text-red-400' : 'text-slate-500 group-hover:text-slate-300'}`}>Training Grounds</span>
+                                    </label>
+                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                        <input
+                                            type="radio"
+                                            checked={!isTrainingWar}
+                                            onChange={() => setIsTrainingWar(false)}
+                                            className="w-4 h-4 accent-red-500"
+                                        />
+                                        <span className={`text-xs font-bold uppercase tracking-wider ${!isTrainingWar ? 'text-red-400' : 'text-slate-500 group-hover:text-slate-300'}`}>Real Warfare</span>
+                                    </label>
+                                </div>
+                                <Button
+                                    onClick={() => {
+                                        if (!warRegionId) { alert("Please enter a Region ID"); return; }
+                                        declareWar(Number(warRegionId), isTrainingWar);
+                                    }}
+                                    className="h-12 bg-red-600 hover:bg-red-500 text-white font-black italic tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.3)]"
+                                >
+                                    AUTHORIZE OPERATION
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="bg-black/20 rounded-xl p-4 border border-white/5 space-y-3">
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Council Log</h4>
+                            <div className="space-y-2 font-mono text-[9px]">
+                                <div className="text-slate-600">[SYSLOG]: Awaiting presidential directive...</div>
+                                <div className="text-slate-600">[SYSLOG]: All systems standing by.</div>
+                            </div>
                         </div>
                     </div>
                 </div>

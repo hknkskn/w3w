@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
 import { Button } from '@/components/Button';
 import { ShoppingCart, TrendingUp, Package, Search, Filter, Star, Coins } from 'lucide-react';
@@ -8,9 +9,13 @@ import { MarketSell } from '@/components/game/MarketSell';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
 
 export default function MarketPage() {
+    const searchParams = useSearchParams();
     const { marketItems, myListings, buyItem, user, cancelMarketListing, fetchMarketItems, fetchMyListings, fetchInventory } = useGameStore();
     const [selectedCategory, setSelectedCategory] = useState('all');
-    const [view, setView] = useState<'buy' | 'sell' | 'my_offers'>('buy');
+
+    // Initialize view from URL param
+    const initialView = searchParams.get('view') as 'buy' | 'sell' | 'my_offers' || 'buy';
+    const [view, setView] = useState<'buy' | 'sell' | 'my_offers'>(initialView);
 
     useEffect(() => {
         fetchMarketItems();
