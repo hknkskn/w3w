@@ -128,11 +128,13 @@ module web3war::governance {
     // ============================================
     
     fun init_module(admin: &signer) {
-        move_to(admin, GovernanceRegistry {
-            countries: vector::empty(),
-            next_proposal_id: 1,
-            proposals: vector::empty(),
-        });
+        if (!exists<GovernanceRegistry>(signer::address_of(admin))) {
+            move_to(admin, GovernanceRegistry {
+                countries: vector::empty(),
+                next_proposal_id: 1,
+                proposals: vector::empty(),
+            });
+        };
     }
 
     // ============================================
@@ -401,7 +403,7 @@ module web3war::governance {
             // We'll just use a placeholder for amount for now or parse it if we had BCS.
             // Simplified: The proposer gets the amount specified in data (parsed as u64)
             
-            let amount = 0u64; // Placeholder for actual parsing
+            // let amount = 0u64; // Placeholder for actual parsing
             // treasury::withdraw_funds(proposal.country_id, amount);
             // citizen::add_credits(proposal.proposer, amount);
             

@@ -57,7 +57,7 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
                                             : 'MFG_MISSILE',
                 quality: c.quality,
                 region: `Region ${c.region_id}`,
-                funds: Number(c.balance),
+                funds: Number(c.balance) / 100, // Convert from atomic units
                 inventory: {
                     rawMaterial: Number(c.raw_stock),
                     products: Number(c.product_stock)
@@ -67,7 +67,7 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
                     id: `job_${c.id}`,
                     companyId: `co_${c.id}`,
                     companyName: parseMoveString(c.name),
-                    salary: Number(c.job_offer.salary),
+                    salary: Number(c.job_offer.salary) / 100, // Convert from atomic units
                     positions: Number(c.job_offer.open_positions),
                     active: Boolean(c.job_offer.active), // Fixed: Mapping the active field
                     minSkill: 0
@@ -124,7 +124,9 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
         try {
             const numericId = Number(companyId.replace('co_', ''));
             const { ContractService } = await import('../contract-service');
-            const tx = await ContractService.postJobOffer(numericId, salary, positions);
+            // Convert salary to CRED atomic units (8 decimals)
+            const salaryInAtomicUnits = salary * 100; // 10^2
+            const tx = await ContractService.postJobOffer(numericId, salaryInAtomicUnits, positions);
 
             if (tx) {
                 alert("Job offer posted! Waiting for confirmation...");
@@ -287,7 +289,9 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
         try {
             const numericId = Number(companyId.replace('co_', ''));
             const { ContractService } = await import('../contract-service');
-            const tx = await ContractService.depositCompanyFunds(numericId, amount);
+            // Convert amount to CRED atomic units (8 decimals)
+            const amountInAtomicUnits = amount * 100; // 10^2
+            const tx = await ContractService.depositCompanyFunds(numericId, amountInAtomicUnits);
 
             if (tx) {
                 alert("Funds deposited! Waiting for confirmation...");

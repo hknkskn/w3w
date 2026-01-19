@@ -7,7 +7,8 @@ import { ChevronDown, LucideIcon } from 'lucide-react';
 
 interface DropdownItem {
     label: string;
-    href: string;
+    href?: string;
+    onClick?: () => void;
     icon: LucideIcon;
     badge?: number;
     description?: string;
@@ -71,35 +72,60 @@ export function TacticalDropdown({ label, icon: Icon, items, badge, active }: Ta
                         <div className="bg-slate-950/95 backdrop-blur-2xl border border-white/10 rounded-xl shadow-[0_20px_60px_rgba(0,0,0,0.8)] overflow-hidden">
                             {/* Items List */}
                             <div className="py-1">
-                                {items.map((item) => (
-                                    <Link
-                                        key={item.label}
-                                        href={item.href}
-                                        onClick={() => setIsOpen(false)}
-                                        className="group flex items-center gap-3 px-4 py-3 hover:bg-cyan-500/10 transition-all border-l-2 border-transparent hover:border-cyan-500"
-                                    >
-                                        <div className={`flex items-center justify-center transition-transform group-hover:scale-110`}>
-                                            <item.icon size={16} className={`${item.color || 'text-slate-400'} group-hover:text-cyan-400 transition-colors`} />
-                                        </div>
-                                        <div className="flex-1 flex items-center justify-between overflow-hidden">
-                                            <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-slate-300 group-hover:text-white truncate">
-                                                    {item.label}
-                                                </span>
-                                                {item.description && (
-                                                    <span className="text-[9px] text-slate-500 group-hover:text-cyan-500/50">
-                                                        {item.description}
+                                {items.map((item) => {
+                                    const content = (
+                                        <>
+                                            <div className={`flex items-center justify-center transition-transform group-hover:scale-110`}>
+                                                <item.icon size={16} className={`${item.color || 'text-slate-400'} group-hover:text-cyan-400 transition-colors`} />
+                                            </div>
+                                            <div className="flex-1 flex items-center justify-between overflow-hidden text-left">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-bold text-slate-300 group-hover:text-white truncate">
+                                                        {item.label}
+                                                    </span>
+                                                    {item.description && (
+                                                        <span className="text-[9px] text-slate-500 group-hover:text-cyan-500/50">
+                                                            {item.description}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {item.badge && (
+                                                    <span className="bg-red-600 text-[10px] font-black px-1.5 rounded flex items-center justify-center shadow-[0_0_10px_rgba(220,38,38,0.4)]">
+                                                        {item.badge}
                                                     </span>
                                                 )}
                                             </div>
-                                            {item.badge && (
-                                                <span className="bg-red-600 text-[10px] font-black px-1.5 rounded flex items-center justify-center shadow-[0_0_10px_rgba(220,38,38,0.4)]">
-                                                    {item.badge}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </Link>
-                                ))}
+                                        </>
+                                    );
+
+                                    const className = "group flex items-center gap-3 px-4 py-3 hover:bg-cyan-500/10 transition-all border-l-2 border-transparent hover:border-cyan-500 w-full";
+
+                                    if (item.onClick) {
+                                        return (
+                                            <button
+                                                key={item.label}
+                                                onClick={() => {
+                                                    item.onClick?.();
+                                                    setIsOpen(false);
+                                                }}
+                                                className={className}
+                                            >
+                                                {content}
+                                            </button>
+                                        );
+                                    }
+
+                                    return (
+                                        <Link
+                                            key={item.label}
+                                            href={item.href || '#'}
+                                            onClick={() => setIsOpen(false)}
+                                            className={className}
+                                        >
+                                            {content}
+                                        </Link>
+                                    );
+                                })}
                             </div>
 
                             {/* Tactical Footer */}

@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Web3War Team"]
 
 [addresses]
-web3war = "0xcaf6e8d1bfdf1ab274938b67b4b37b9fb533be505e0c4a380846bf6096d4b0c6"
+web3war = "0x1d1e94af4bdb824f3d9e2f7aad72cf76b42f95a341ee384c876ba4976e3b27fe"
 std = "0x1"
 supra_framework = "0x1"
 aptos_framework = "0x1"

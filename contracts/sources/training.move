@@ -5,6 +5,8 @@ module web3war::training {
     use aptos_framework::event;
     use aptos_framework::coin;
     use web3war::citizen;
+    use web3war::admin;
+    use web3war::cred_coin::CRED;
 
     // ============================================
     // ERRORS
@@ -58,6 +60,8 @@ module web3war::training {
     // ============================================
     
     fun init_module(admin: &signer) {
+        if (exists<TrainingConfig>(signer::address_of(admin))) return;
+
         let upgrade_costs = vector::empty<u64>();
         vector::push_back(&mut upgrade_costs, 2500 * 100000000);
         vector::push_back(&mut upgrade_costs, 5000 * 100000000);
@@ -118,8 +122,9 @@ module web3war::training {
         let config = borrow_global<TrainingConfig>(@web3war);
         let now = timestamp::now_seconds();
         let level = citizen::get_level(addr);
+        let is_admin = admin::is_admin(addr);
 
-        assert!(now >= grounds.last_train_time + COOLDOWN_24H, E_COOLDOWN_ACTIVE);
+        assert!(is_admin || now >= grounds.last_train_time + COOLDOWN_24H, E_COOLDOWN_ACTIVE);
 
         let total_strength_gain: u64 = 0;
         let total_energy_cost: u64 = 0;
@@ -151,10 +156,12 @@ module web3war::training {
         };
 
         // Deductions
-        if (total_cred_cost > 0) {
-            citizen::deduct_credits(addr, total_cred_cost);
+        if (!is_admin && total_cred_cost > 0) {
+            coin::transfer<CRED>(account, @web3war, total_cred_cost);
         };
-        citizen::consume_energy(addr, total_energy_cost);
+        if (!is_admin) {
+            citizen::consume_energy(addr, total_energy_cost);
+        };
         citizen::add_strength(addr, total_strength_gain);
 
         grounds.last_train_time = now;
@@ -180,7 +187,9 @@ module web3war::training {
         assert!(*current_quality < 5, 101);
         
         let cost = *vector::borrow(&config.upgrade_costs, (*current_quality as u64) - 1);
-        coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, cost);
+        if (!admin::is_admin(addr)) {
+            coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, cost);
+        };
         
         *current_quality = *current_quality + 1;
     }

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
 import { Button } from '@/components/Button';
-import { ShoppingCart, TrendingUp, Package, Search, Filter, Star, Coins } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Package, Search, Filter, Star, Coins, Sword, Beef, Ticket, Home, Pickaxe } from 'lucide-react';
 import { MarketSell } from '@/components/game/MarketSell';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
 
@@ -29,12 +29,12 @@ export default function MarketPage() {
     }, [view]);
 
     const categories = [
-        { id: 'all', name: 'All Items', icon: <Package size={16} /> },
-        { id: 'weapons', name: 'Weapons', icon: <span>🔫</span> },
-        { id: 'food', name: 'Food', icon: <span>🍞</span> },
-        { id: 'tickets', name: 'Tickets', icon: <span>🎫</span> },
-        { id: 'houses', name: 'Houses', icon: <span>🏠</span> },
-        { id: 'raw', name: 'Raw Materials', icon: <span>⛏️</span> },
+        { id: 'all', name: 'All Items', icon: <Package size={18} /> },
+        { id: 'weapons', name: 'Weapons', icon: <Sword size={18} /> },
+        { id: 'food', name: 'Food', icon: <Beef size={18} /> },
+        { id: 'tickets', name: 'Tickets', icon: <Ticket size={18} /> },
+        { id: 'houses', name: 'Houses', icon: <Home size={18} /> },
+        { id: 'raw', name: 'Raw Materials', icon: <Pickaxe size={18} /> },
     ];
 
     const filteredItems = view === 'buy'
@@ -50,190 +50,181 @@ export default function MarketPage() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight">
-                        {view === 'buy' ? 'Global Marketplace' : view === 'sell' ? 'Seller Command' : 'My Offers'}
-                    </h1>
-                    <p className="text-slate-400 mt-1">
-                        {view === 'buy' ? 'Trade goods with commanders worldwide' : view === 'sell' ? 'List your surplus goods for CRED' : 'Manage your active listings and escrow'}
-                    </p>
+        <div className="max-w-6xl mx-auto space-y-4 animate-in fade-in duration-500 pb-12 px-4 md:px-6">
+            {/* HD Industrial Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 rounded-xl p-5 border border-slate-800 shadow-xl mt-4">
+                <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-cyan-600/10 rounded-full flex items-center justify-center border border-cyan-600/20">
+                        <ShoppingCart className="text-cyan-400" size={28} />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-white tracking-tighter leading-none">
+                            GLOBAL MARKETPLACE
+                        </h1>
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
+                            <span className="text-[9px] text-cyan-400 font-black uppercase tracking-[0.2em]">OPERATIONAL SECTOR: {view === 'buy' ? 'PROCUREMENT & TRADING' : view === 'sell' ? 'INVENTORY LIQUIDATION' : 'LOGISTICS ESCROW'}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex gap-3">
-                    <Button
-                        variant={view === 'buy' ? "default" : "outline"}
-                        onClick={() => setView('buy')}
-                        className={view === 'buy' ? "bg-gradient-to-r from-cyan-500 to-blue-600" : "border-slate-700"}
-                    >
-                        <TrendingUp size={16} className="mr-2" /> Buy Items
-                    </Button>
-                    <Button
-                        variant={view === 'sell' ? "default" : "outline"}
-                        onClick={() => setView('sell')}
-                        className={view === 'sell' ? "bg-gradient-to-r from-emerald-500 to-teal-600 shadow-[0_0_15px_rgba(16,185,129,0.2)]" : "border-slate-700"}
-                    >
-                        <ShoppingCart size={16} className="mr-2" /> Sell Items
-                    </Button>
-                    <Button
-                        variant={view === 'my_offers' ? "default" : "outline"}
-                        onClick={() => setView('my_offers')}
-                        className={view === 'my_offers' ? "bg-gradient-to-r from-amber-500 to-orange-600 shadow-[0_0_15px_rgba(245,158,11,0.2)]" : "border-slate-700"}
-                    >
-                        <Package size={16} className="mr-2" /> My Offers
-                    </Button>
+
+                <div className="text-right">
+                    <div className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">Available Credits</div>
+                    <div className="flex items-center justify-end gap-2 text-white mt-1">
+                        <Coins size={14} className="text-amber-500" />
+                        <span className="text-xl font-black font-mono tracking-tighter">{(user?.credits || 0).toFixed(2)} CRED</span>
+                    </div>
                 </div>
             </div>
 
+            {/* HD Tab Navigation */}
+            <div className="flex items-center gap-1 p-1 bg-slate-900/80 rounded-lg border border-slate-800 overflow-x-auto no-scrollbar">
+                {[
+                    { id: 'buy', label: 'Procurement', icon: <TrendingUp size={14} />, color: 'text-cyan-400' },
+                    { id: 'sell', label: 'Liquidation', icon: <ShoppingCart size={14} />, color: 'text-emerald-400' },
+                    { id: 'my_offers', label: 'Escrow', icon: <Package size={14} />, color: 'text-amber-400' },
+                ].map((tab) => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setView(tab.id as any)}
+                        className={`flex items-center gap-2 px-6 py-2 rounded-md font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${view === tab.id
+                            ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
+                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                            }`}
+                    >
+                        <span className={view === tab.id ? tab.color : 'text-slate-600'}>{tab.icon}</span>
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {view === 'sell' ? (
-                <MarketSell />
+                <div className="animate-in fade-in duration-300">
+                    <MarketSell />
+                </div>
             ) : (
-                <>
-                    {/* Search Bar (Only for Buy view) */}
-                    {view === 'buy' && (
-                        <div className="relative mb-6">
-                            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                <div className="grid grid-cols-12 gap-4 items-start">
+                    {/* Compact Categories Sidebar */}
+                    <div className="col-span-12 lg:col-span-3 space-y-3">
+                        <h2 className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] px-2">Facility Registry</h2>
+                        <div className="space-y-0.5">
+                            {categories.map((cat) => (
+                                <div
+                                    key={cat.id}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                    className={`flex items-center gap-3 px-4 py-2.5 rounded-md border transition-all cursor-pointer group ${selectedCategory === cat.id
+                                        ? 'bg-cyan-500/5 border-cyan-500/30'
+                                        : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/60'
+                                        }`}
+                                >
+                                    <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm transition-all ${selectedCategory === cat.id ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-950 text-slate-600'}`}>
+                                        {cat.icon}
+                                    </div>
+                                    <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory === cat.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>
+                                        {cat.name}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* HD Listings Grid */}
+                    <div className="col-span-12 lg:col-span-9 space-y-4">
+                        {/* Search Bar - HD */}
+                        <div className="relative group">
+                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
                             <input
                                 type="text"
-                                placeholder="Search items, sellers, or categories..."
-                                className="w-full pl-12 pr-4 py-4 bg-slate-800/60 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm"
+                                placeholder="SEARCH MARKET INVENTORY..."
+                                className="w-full pl-12 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-[11px] font-black text-white placeholder:text-slate-700 tracking-widest focus:outline-none focus:border-cyan-500/30 transition-all shadow-inner uppercase"
                             />
-                            <button className="absolute right-3 top-1/2 -translate-y-1/2 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg flex items-center gap-2 text-sm transition-colors">
-                                <Filter size={14} /> Filters
-                            </button>
                         </div>
-                    )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                        {/* Categories Sidebar */}
-                        <div className="lg:col-span-1">
-                            <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 p-4">
-                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                    <Package size={14} /> Categories
-                                </h3>
-                                <nav className="space-y-1">
-                                    {categories.map((cat) => (
-                                        <button
-                                            key={cat.id}
-                                            onClick={() => setSelectedCategory(cat.id)}
-                                            className={`w-full text-left px-4 py-3 text-sm font-medium rounded-lg transition-all flex items-center gap-3 ${selectedCategory === cat.id
-                                                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                                                : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
-                                                }`}
-                                        >
-                                            {cat.icon}
-                                            {cat.name}
-                                        </button>
-                                    ))}
-                                </nav>
+                        {/* HD Registry Table */}
+                        <div className="bg-slate-900/40 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
+                            <div className="grid grid-cols-12 px-6 py-2 bg-slate-900 border-b border-slate-800 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">
+                                <div className="col-span-5">Product Matrix</div>
+                                <div className="col-span-2 text-center">Available</div>
+                                <div className="col-span-2 text-center">Price (CRED)</div>
+                                <div className="col-span-3 text-right">Verification</div>
                             </div>
-                        </div>
 
-                        {/* Listings Grid */}
-                        <div className="lg:col-span-4">
-                            <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 overflow-hidden">
-                                {/* Table Header */}
-                                <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900/50 text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-700/50">
-                                    <div className="col-span-4">Product</div>
-                                    <div className="col-span-2">Stock</div>
-                                    <div className="col-span-2">{view === 'buy' ? 'Seller' : 'Status'}</div>
-                                    <div className="col-span-2">Price</div>
-                                    <div className="col-span-2 text-right">Action</div>
-                                </div>
-
-                                {/* Table Body */}
-                                <div className="divide-y divide-slate-700/30">
-                                    {filteredItems.length === 0 ? (
-                                        <div className="py-20 text-center text-slate-500 font-medium">
-                                            No active listings {view === 'my_offers' ? 'for you.' : 'in this category.'}
-                                        </div>
-                                    ) : (
-                                        filteredItems.map((item) => (
-                                            <div
-                                                key={item.id}
-                                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-700/20 transition-colors group"
-                                            >
-                                                <div className="col-span-4 flex items-center gap-4">
-                                                    <div className="w-12 h-12 bg-slate-900/50 border border-slate-700 rounded-lg flex items-center justify-center text-2xl group-hover:border-cyan-500/30 transition-colors">
-                                                        {item.image}
-                                                    </div>
-                                                    <div>
-                                                        <div className="font-bold text-white group-hover:text-cyan-400 transition-colors">
-                                                            {item.name}
-                                                        </div>
-                                                        <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-500 font-bold uppercase">
-                                                            Q{item.quality} • {item.type}
-                                                        </div>
-                                                    </div>
+                            <div className="divide-y divide-slate-800/50">
+                                {filteredItems.length === 0 ? (
+                                    <div className="py-20 text-center">
+                                        <Package size={32} className="mx-auto text-slate-800 mb-2 opacity-20" />
+                                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No Active Listings</p>
+                                    </div>
+                                ) : (
+                                    filteredItems.map((item) => (
+                                        <div
+                                            key={item.id}
+                                            className="grid grid-cols-12 px-6 py-3.5 items-center hover:bg-slate-800/40 transition-all group h-18"
+                                        >
+                                            <div className="col-span-5 flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center text-3xl group-hover:border-cyan-500/20 transition-all">
+                                                    {item.image}
                                                 </div>
-
-                                                <div className="col-span-2 text-slate-400 font-medium font-mono">
-                                                    {item.stock.toLocaleString()}
-                                                </div>
-
-                                                <div className="col-span-2">
+                                                <div className="min-w-0">
+                                                    <div className="text-[13px] font-black text-white uppercase tracking-tight truncate leading-none mb-1 group-hover:text-cyan-400 transition-colors">
+                                                        {item.name}
+                                                    </div>
                                                     <div className="flex items-center gap-2">
-                                                        {view === 'buy' && item.sellerCountry && COUNTRY_CONFIG[item.sellerCountry] && (
-                                                            <img src={COUNTRY_CONFIG[item.sellerCountry].flag} className="w-4 h-2.5 object-cover rounded shadow-sm border border-white/10" alt="" />
-                                                        )}
-                                                        <span className={`${view === 'buy' ? 'text-cyan-400 underline decoration-cyan-500/30' : 'text-emerald-400'} font-medium text-sm truncate`}>
-                                                            {view === 'buy' ? item.seller : 'ESCROW ACTIVE'}
-                                                        </span>
+                                                        <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest leading-none border border-slate-800 px-1 py-0.5 rounded-sm">Q{item.quality} • {item.type}</span>
                                                     </div>
-                                                </div>
-
-                                                <div className="col-span-2">
-                                                    <div className="flex items-center gap-1.5 font-bold text-amber-400">
-                                                        <Coins size={14} />
-                                                        {item.price.toFixed(2)}
-                                                    </div>
-                                                </div>
-
-                                                <div className="col-span-2 text-right flex items-center justify-end gap-2">
-                                                    {view === 'buy' ? (
-                                                        <>
-                                                            <input
-                                                                type="number"
-                                                                min="1"
-                                                                max={item.stock}
-                                                                className="w-12 h-8 bg-slate-900 border border-slate-700 rounded text-center text-xs font-mono text-cyan-400"
-                                                                defaultValue="1"
-                                                                id={`qty-${item.id}`}
-                                                            />
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => {
-                                                                    const qty = (document.getElementById(`qty-${item.id}`) as HTMLInputElement)?.value;
-                                                                    handleBuy({ ...item, quantity: Number(qty) });
-                                                                }}
-                                                                className="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 shadow-lg shadow-emerald-500/10 h-8 px-3 text-[10px]"
-                                                            >
-                                                                BUY (CRED)
-                                                            </Button>
-                                                        </>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            onClick={() => cancelMarketListing(item.id)}
-                                                            className="bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/20 transition-all font-bold text-[10px]"
-                                                        >
-                                                            CANCEL
-                                                        </Button>
-                                                    )}
                                                 </div>
                                             </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
 
-                            <div className="flex justify-between items-center mt-4 text-sm">
-                                <span className="text-slate-500">Showing {filteredItems.length} items</span>
+                                            <div className="col-span-2 text-center">
+                                                <div className="text-sm font-bold font-mono text-white tabular-nums">
+                                                    {item.stock.toLocaleString()}
+                                                </div>
+                                                <div className="text-[8px] text-slate-600 font-black uppercase">UNITS</div>
+                                            </div>
+
+                                            <div className="col-span-2 text-center">
+                                                <div className="flex items-center justify-center gap-1.5 font-black text-amber-500 tabular-nums text-base font-mono">
+                                                    {item.price.toFixed(2)}
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-3 flex items-center justify-end gap-2">
+                                                {view === 'buy' ? (
+                                                    <div className="flex items-center gap-1.5">
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            max={item.stock}
+                                                            className="w-10 h-8 bg-slate-950 border border-slate-800 rounded text-center text-[11px] font-mono font-bold text-cyan-400 focus:outline-none focus:border-cyan-500/30"
+                                                            defaultValue="1"
+                                                            id={`qty-${item.id}`}
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const qty = (document.getElementById(`qty-${item.id}`) as HTMLInputElement)?.value;
+                                                                handleBuy({ ...item, quantity: Number(qty) });
+                                                            }}
+                                                            className="h-8 px-5 bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black text-white rounded active:scale-95 transition-all uppercase tracking-widest shadow-lg"
+                                                        >
+                                                            BUY
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => cancelMarketListing(item.id)}
+                                                        className="h-8 px-4 bg-slate-800 hover:bg-red-600 text-[9px] font-black text-slate-400 hover:text-white border border-slate-700 hover:border-red-500 rounded transition-all uppercase tracking-widest"
+                                                    >
+                                                        CANCEL
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         </div>
                     </div>
-                </>
+                </div>
             )}
         </div>
     );

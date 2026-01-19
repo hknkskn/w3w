@@ -1,6 +1,8 @@
 /// Treasury Module - Web3War
 /// Manages country funds from taxes.
 module web3war::treasury {
+    use std::signer;
+    use std::vector;
     use aptos_framework::event;
 
     const E_INSUFFICIENT_FUNDS: u64 = 1;
@@ -23,9 +25,11 @@ module web3war::treasury {
     }
 
     fun init_module(admin: &signer) {
-        move_to(admin, TreasuryRegistry {
-            balances: vector::empty(),
-        });
+        if (!exists<TreasuryRegistry>(signer::address_of(admin))) {
+            move_to(admin, TreasuryRegistry {
+                balances: vector::empty(),
+            });
+        };
     }
 
     public fun deposit_tax(country_id: u8, amount: u64, tax_type: u8) acquires TreasuryRegistry {

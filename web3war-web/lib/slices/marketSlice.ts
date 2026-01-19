@@ -12,7 +12,7 @@ export interface MarketSlice {
     buyItem: (itemId: string, quantity: number) => void;
 }
 
-const CRED_DECIMALS = 100_000_000;
+const CRED_DECIMALS = 100;
 
 export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (set, get) => ({
     marketItems: [],
@@ -24,40 +24,28 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             const categories = [1, 2, 3, 4]; // Food, Weapon, Material, Ticket
             let allListings: MarketItem[] = [];
 
+            const { getItemFromOntology } = await import('../ontology');
+            const { COUNTRY_IDS } = await import('../types');
+            const ID_TO_COUNTRY = Object.fromEntries(Object.entries(COUNTRY_IDS).map(([k, v]) => [v, k]));
+
             for (const cat of categories) {
                 const listings = await ContractService.getMarketListingsByCategory(cat);
                 if (listings && Array.isArray(listings)) {
                     const mapped = listings.map((l: any) => {
                         const itemId = Number(l.original_item_id);
-                        let name = "Unknown Item";
-                        let image = "📦";
+                        const quality = Number(l.item_type?.quality || 1);
+                        const ontologyItem = getItemFromOntology(itemId, quality);
 
-                        // ID-based Naming (Ontology Phase 13)
-                        if (itemId === 101) { name = "Grain"; image = "🌾"; }
-                        else if (itemId === 102) { name = "Iron"; image = "⚒️"; }
-                        else if (itemId === 103) { name = "Oil"; image = "🛢️"; }
-                        else if (itemId === 104) { name = "Aluminum"; image = "💎"; }
-                        else if (itemId === 201) { name = "Food"; image = "🍞"; }
-                        else if (itemId === 202) { name = "Weapon"; image = "⚔️"; }
-                        else if (itemId === 203) { name = "Ticket"; image = "🎫"; }
-                        else if (itemId === 204) { name = "Missile"; image = "🚀"; }
-
-                        const sellerCountries: CountryId[] = ['NG', 'UA', 'RU', 'US', 'TR', 'IN', 'ES', 'PL', 'BR', 'FR'];
                         return {
-                            id: l.id,
-                            name: `${name} Q${l.item_type.quality}`,
-                            quality: l.item_type.quality,
+                            ...ontologyItem,
+                            id: String(l.id), // Marketplace listing ID
                             stock: Number(l.quantity),
-                            price: Number(l.price_per_unit) / CRED_DECIMALS, // Convert to CRED
+                            price: Number(l.price_per_unit) / CRED_DECIMALS,
                             seller: l.seller,
-                            sellerCountry: sellerCountries[Math.floor(Math.random() * sellerCountries.length)],
+                            sellerCountry: ID_TO_COUNTRY[l.country] as CountryId || 'TR',
                             category: cat === 1 ? 'food' : cat === 2 ? 'weapons' : cat === 3 ? 'raw' : 'tickets',
-                            type: cat === 1 ? 'food' : cat === 2 ? 'weapon' : cat === 3 ? 'material' : 'ticket',
-                            image,
-                            damage: (cat === 2) ? l.item_type.quality * 10 : undefined,
-                            energyRestore: (cat === 1) ? l.item_type.quality * 10 : undefined,
                             originalItemId: itemId
-                        };
+                        } as MarketItem;
                     });
                     allListings = [...allListings, ...mapped];
                 }
@@ -72,12 +60,12 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
     fetchMyListings: async () => {
         try {
             const user = get().user;
-            if (!user || !user.walletAddress) {
+            if (!user?.walletAddress) {
                 set({ myListings: [] });
                 return;
             }
-
             const { ContractService } = await import('../contract-service');
+            const { getItemFromOntology } = await import('../ontology');
             const listings = await ContractService.getMyListings(user.walletAddress);
 
             if (!listings || !Array.isArray(listings)) {
@@ -87,30 +75,18 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
 
             const mapped = listings.map((l: any) => {
                 const itemId = Number(l.original_item_id);
-                let name = "Unknown Item";
-                let image = "📦";
-
-                if (itemId === 101) { name = "Grain"; image = "🌾"; }
-                else if (itemId === 102) { name = "Iron"; image = "⚒️"; }
-                else if (itemId === 103) { name = "Oil"; image = "🛢️"; }
-                else if (itemId === 104) { name = "Aluminum"; image = "💎"; }
-                else if (itemId === 201) { name = "Food"; image = "🍞"; }
-                else if (itemId === 202) { name = "Weapon"; image = "⚔️"; }
-                else if (itemId === 203) { name = "Ticket"; image = "🎫"; }
-                else if (itemId === 204) { name = "Missile"; image = "🚀"; }
+                const quality = Number(l.item_type?.quality || 1);
+                const ontologyItem = getItemFromOntology(itemId, quality);
 
                 return {
-                    id: l.id,
-                    name: `${name} Q${l.item_type?.quality || 1}`,
-                    quality: l.item_type?.quality || 1,
+                    ...ontologyItem,
+                    id: String(l.id),
                     stock: Number(l.quantity),
-                    price: Number(l.price_per_unit) / CRED_DECIMALS, // Convert to CRED
+                    price: Number(l.price_per_unit) / CRED_DECIMALS,
                     seller: l.seller,
                     category: 'my',
-                    type: 'listed',
-                    image,
                     originalItemId: itemId
-                };
+                } as MarketItem;
             });
 
             set({ myListings: mapped });
@@ -181,25 +157,19 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
         }
     },
 
-    buyItem: async (listingId, quantity) => {
+    buyItem: async (listingId: string, quantity: number) => {
         try {
             const { ContractService } = await import('../contract-service');
-
-            // Call Smart Contract
-            await ContractService.buyMarketItem(Number(listingId), quantity);
-
-            // Optimistic UI Update not crucial here as data refreshes are better
-            // But we can trigger a refresh
-            const state = get();
-            setTimeout(() => {
-                state.fetchMarketItems();
-                state.fetchInventory();
-                // Refresh user balance
-                const userLogin = get().login;
-                // If we had a dedicated refreshBalance it would be better, but re-login works to refresh profile
-            }, 2000); // Wait for block?
-
-            alert("Buy transaction sent!");
+            const tx = await ContractService.buyMarketItem(Number(listingId), quantity);
+            if (tx) {
+                alert("Purchase request sent!");
+                setTimeout(() => {
+                    const state = get();
+                    state.fetchMarketItems();
+                    state.fetchInventory();
+                    state.fetchDashboardData();
+                }, 3000);
+            }
         } catch (e) {
             console.error(e);
             alert("Failed to buy item");

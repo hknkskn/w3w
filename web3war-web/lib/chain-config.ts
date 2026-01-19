@@ -1,4 +1,4 @@
-export const MODULE_ADDRESS = "0x4fdc2525b820cc79baf4b4534247b40169d31606f11bd4170e6d2afed365b858";
+export const MODULE_ADDRESS = "0x1d1e94af4bdb824f3d9e2f7aad72cf76b42f95a341ee384c876ba4976e3b27fe";
 
 export const WE3WAR_MODULES = {
     CITIZEN: `${MODULE_ADDRESS}::citizen`,
@@ -13,4 +13,9 @@ export const WE3WAR_MODULES = {
     NEWSPAPER: `${MODULE_ADDRESS}::newspaper`,
     ADMIN: `${MODULE_ADDRESS}::admin`,
     COIN_TYPE: `${MODULE_ADDRESS}::cred_coin::CRED`,
+
+    // Added for Service Compatibility
+    CRED_COIN: `${MODULE_ADDRESS}::cred_coin`,
+    COUNTRY: `${MODULE_ADDRESS}::country`,
+    POLITICS: `${MODULE_ADDRESS}::politics`,
 } as const;

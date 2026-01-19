@@ -1,6 +1,7 @@
 /// Alliance Module - Web3War
 /// Manages Mutual Protection Pacts (MPPs) between countries.
 module web3war::alliance {
+    use std::signer;
     use std::vector;
     use aptos_framework::timestamp;
     use aptos_framework::event;
@@ -31,7 +32,9 @@ module web3war::alliance {
     }
 
     fun init_module(admin: &signer) {
-        move_to(admin, AllianceRegistry { next_id: 1, active_mpps: vector::empty() });
+        if (!exists<AllianceRegistry>(signer::address_of(admin))) {
+            move_to(admin, AllianceRegistry { next_id: 1, active_mpps: vector::empty() });
+        };
     }
 
     /// Sign MPP (requires both countries' approval - simplified)

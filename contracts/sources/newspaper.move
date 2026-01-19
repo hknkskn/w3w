@@ -2,9 +2,9 @@ module web3war::newspaper {
     use std::string::{String};
     use std::vector;
     use aptos_framework::timestamp;
-    use aptos_framework::signer;
-    use aptos_framework::coin;
-    use web3war::cred_coin::CRED;
+    use std::signer;
+    // use aptos_framework::coin;
+    // use web3war::cred_coin::CRED;
 
     struct Newspaper has key {
         name: String,
@@ -35,13 +35,17 @@ module web3war::newspaper {
     const E_ALREADY_EXISTS: u64 = 2;
 
     fun init_module(admin: &signer) {
-        move_to(admin, NewspaperConfig {
-            admin: signer::address_of(admin),
-            creation_fee: 2500 * 100000000, // 2500 SUPRA
-        });
-        move_to(admin, NewspaperRegistry {
-            newspapers: vector::empty<address>(),
-        });
+        if (!exists<NewspaperConfig>(signer::address_of(admin))) {
+            move_to(admin, NewspaperConfig {
+                admin: signer::address_of(admin),
+                creation_fee: 2500 * 100000000, // 2500 SUPRA
+            });
+        };
+        if (!exists<NewspaperRegistry>(signer::address_of(admin))) {
+            move_to(admin, NewspaperRegistry {
+                newspapers: vector::empty<address>(),
+            });
+        };
     }
 
     /// Update fees (Admin only)

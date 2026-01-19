@@ -10,13 +10,57 @@ export function AdminToolkit() {
     const { user, mintCredits, addEnergy } = useGameStore();
     const [isLoading, setIsLoading] = useState(false);
     const [targetAddr, setTargetAddr] = useState(user?.walletAddress || '');
+    const [selectedQuality, setSelectedQuality] = useState(1);
+    const [selectedQuantity, setSelectedQuantity] = useState(10);
 
     if (!user?.isAdmin) return null;
+
+    const CATEGORIZED_ITEMS = [
+        {
+            name: 'Materials',
+            icon: <Hammer size={12} />,
+            color: 'text-slate-400',
+            items: [
+                { id: 101, cat: 3, name: 'Grain', icon: <Wheat size={12} /> },
+                { id: 102, cat: 3, name: 'Iron', icon: <Hammer size={12} /> },
+                { id: 103, cat: 3, name: 'Oil', icon: <Package size={12} /> },
+                { id: 104, cat: 3, name: 'Aluminum', icon: <Shield size={12} /> },
+            ]
+        },
+        {
+            name: 'Consumables',
+            icon: <Zap size={12} />,
+            color: 'text-amber-500',
+            items: [
+                { id: 201, cat: 1, name: 'Food', icon: <Package size={12} /> },
+            ]
+        },
+        {
+            name: 'Combat',
+            icon: <Crosshair size={12} />,
+            color: 'text-red-500',
+            items: [
+                { id: 202, cat: 2, name: 'Weapon', icon: <Crosshair size={12} /> },
+                { id: 204, cat: 2, name: 'Missile', icon: <Zap size={12} /> },
+            ]
+        },
+        {
+            name: 'Misc',
+            icon: <Package size={12} />,
+            color: 'text-cyan-500',
+            items: [
+                { id: 203, cat: 4, name: 'Ticket', icon: <Package size={12} /> },
+            ]
+        }
+    ];
+
+    const CRED_DECIMALS = 100; // CRED has 2 decimals
 
     const handleMint = async (amount: number) => {
         setIsLoading(true);
         try {
-            await mintCredits(targetAddr, amount);
+            // Convert display amount to on-chain amount (e.g., 50000 CR = 5000000 units)
+            await mintCredits(targetAddr, amount * CRED_DECIMALS);
         } finally {
             setIsLoading(false);
         }
@@ -26,6 +70,27 @@ export function AdminToolkit() {
         setIsLoading(true);
         try {
             await addEnergy(targetAddr, amount);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleMintItem = async (itemId: number, category: number) => {
+        setIsLoading(true);
+        try {
+            const { mintItem } = useGameStore.getState();
+            await mintItem(targetAddr, itemId, category, selectedQuality, selectedQuantity);
+            // Refresh inventory after mint
+            const { fetchInventory } = useGameStore.getState();
+            setTimeout(() => fetchInventory(), 4000);
+            alert(`Item minted successfully!`);
+        } catch (e: any) {
+            console.error("Mint item error:", e);
+            if (e?.message?.includes("initialized inventory")) {
+                alert(`Error: Target user does not have an inventory initialized.\n\nThe target must either:\n1. Register as a citizen first, or\n2. Call init_inventory`);
+            } else {
+                alert(`Mint failed: ${e?.message || 'Unknown error'}`);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -59,118 +124,183 @@ export function AdminToolkit() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <div className="text-[10px] text-slate-500 font-black uppercase ml-1">CRED Management</div>
-                        <div className="flex flex-col gap-2">
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 text-[10px] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 font-black"
-                                onClick={() => handleMint(1000)}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? <Loader2 className="animate-spin" size={12} /> : <Coins size={12} className="mr-2" />}
-                                +1,000 CRED
-                            </Button>
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-9 text-[10px] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 font-black"
-                                onClick={() => handleMint(10000)}
-                                disabled={isLoading}
-                            >
-                                {isLoading ? <Loader2 className="animate-spin" size={12} /> : <Coins size={12} className="mr-2" />}
-                                +10,000 CRED
-                            </Button>
+                    <div>
+                        <label className="block text-[9px] text-slate-500 font-black uppercase mb-1.5 ml-1">Mint Quality (1-5)</label>
+                        <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5].map(q => (
+                                <button
+                                    key={q}
+                                    onClick={() => setSelectedQuality(q)}
+                                    className={`flex-1 h-7 rounded-lg text-[10px] font-black transition-all ${selectedQuality === q
+                                        ? 'bg-cyan-500 text-slate-900 shadow-[0_0_10px_rgba(6,182,212,0.4)]'
+                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                >
+                                    Q{q}
+                                </button>
+                            ))}
                         </div>
                     </div>
+                    <div>
+                        <label className="block text-[9px] text-slate-500 font-black uppercase mb-1.5 ml-1">Mint Quantity</label>
+                        <div className="flex gap-1">
+                            {[10, 50, 100].map(qty => (
+                                <button
+                                    key={qty}
+                                    onClick={() => setSelectedQuantity(qty)}
+                                    className={`flex-1 h-7 rounded-lg text-[10px] font-black transition-all ${selectedQuantity === qty
+                                        ? 'bg-amber-500 text-slate-900 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                                        : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                                        }`}
+                                >
+                                    {qty}
+                                </button>
+                            ))}
+                            <input
+                                type="number"
+                                value={selectedQuantity}
+                                onChange={(e) => setSelectedQuantity(Number(e.target.value))}
+                                className="w-12 h-7 bg-slate-950 border border-slate-800 rounded-lg text-[10px] text-center font-bold text-cyan-400 outline-none focus:border-cyan-500/50"
+                            />
+                        </div>
+                    </div>
+                </div>
 
-                    <div className="space-y-2">
-                        <div className="text-[10px] text-slate-500 font-black uppercase ml-1">Energy Injection</div>
-                        <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-6 pt-4 border-t border-slate-800/50">
+                    <div className="space-y-3">
+                        <div className="text-[10px] text-slate-500 font-black uppercase ml-1 flex items-center gap-2">
+                            <Coins size={10} className="text-emerald-500" /> Currency & Energy
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-9 text-[10px] border-amber-500/20 text-amber-500 hover:bg-amber-500/10 font-black"
+                                className="h-8 text-[9px] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 font-bold"
+                                onClick={() => handleMint(50000)}
+                                disabled={isLoading}
+                            >
+                                +50K CR
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[9px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 font-black shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                                onClick={() => handleMint(100000)}
+                                disabled={isLoading}
+                            >
+                                +100K CR
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[9px] border-amber-500/20 text-amber-500 hover:bg-amber-500/10 font-bold"
                                 onClick={() => handleEnergy(100)}
                                 disabled={isLoading}
                             >
-                                {isLoading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} className="mr-2" />}
-                                +100 ENERGY
+                                +100 EN
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <div className="text-[10px] text-slate-500 font-black uppercase ml-1 flex items-center gap-2">
+                            <Shield size={10} className="text-cyan-500" /> System Params
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[9px] border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/10 font-bold"
+                                onClick={async () => {
+                                    const { initializeGovernance } = useGameStore.getState();
+                                    setIsLoading(true);
+                                    try {
+                                        await initializeGovernance();
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
+                                disabled={isLoading}
+                            >
+                                Init Gov
                             </Button>
                             <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-9 text-[10px] border-amber-500/20 text-amber-500 hover:bg-amber-500/10 font-black"
-                                onClick={() => handleEnergy(200)}
+                                className="h-8 text-[9px] border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/10 font-bold"
+                                onClick={async () => {
+                                    setIsLoading(true);
+                                    try {
+                                        const { CitizenService } = await import('@/lib/services/citizen.service');
+                                        await CitizenService.initializeCoin();
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
                                 disabled={isLoading}
                             >
-                                {isLoading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} className="mr-2" />}
-                                REFILL (200)
+                                Init Coin
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[9px] border-amber-500/20 text-amber-400 hover:bg-amber-500/10 font-bold"
+                                onClick={async () => {
+                                    setIsLoading(true);
+                                    try {
+                                        const { CitizenService } = await import('@/lib/services/citizen.service');
+                                        await CitizenService.initInventory();
+                                        alert('Inventory initialized for your wallet!');
+                                    } catch (e: any) {
+                                        alert(`Init Inventory failed: ${e?.message || 'Unknown error'}`);
+                                    } finally {
+                                        setIsLoading(false);
+                                    }
+                                }}
+                                disabled={isLoading}
+                            >
+                                Init Inv
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 text-[9px] border-slate-700 text-slate-400 hover:bg-slate-800 font-bold"
+                                onClick={() => {
+                                    const { fetchInventory } = useGameStore.getState();
+                                    fetchInventory();
+                                }}
+                            >
+                                Refresh
                             </Button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-                <div className="text-[10px] text-slate-500 font-black uppercase ml-1">Item Supply</div>
-                <div className="grid grid-cols-2 gap-2">
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 text-[10px] border-slate-600/30 text-slate-400 hover:bg-slate-800 font-bold"
-                        onClick={() => {
-                            // Food Q1 (ID: 201, Cat: 1, Q: 1)
-                            const { mintItem } = useGameStore.getState();
-                            mintItem(targetAddr, 201, 1, 1, 10);
-                        }}
-                        disabled={isLoading}
-                    >
-                        <Package size={12} className="mr-2" /> +10 Food Q1
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 text-[10px] border-slate-600/30 text-slate-400 hover:bg-slate-800 font-bold"
-                        onClick={() => {
-                            // Weapon Q1 (ID: 202, Cat: 2, Q: 1)
-                            const { mintItem } = useGameStore.getState();
-                            mintItem(targetAddr, 202, 2, 1, 5);
-                        }}
-                        disabled={isLoading}
-                    >
-                        <Crosshair size={12} className="mr-2" /> +5 Weapon Q1
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 text-[10px] border-slate-600/30 text-slate-400 hover:bg-slate-800 font-bold"
-                        onClick={() => {
-                            // Iron Ore (ID: 102, Cat: 3, Q: 1)
-                            const { mintItem } = useGameStore.getState();
-                            mintItem(targetAddr, 102, 3, 1, 50);
-                        }}
-                        disabled={isLoading}
-                    >
-                        <Hammer size={12} className="mr-2" /> +50 Iron
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-9 text-[10px] border-slate-600/30 text-slate-400 hover:bg-slate-800 font-bold"
-                        onClick={() => {
-                            // Grain (ID: 101, Cat: 3, Q: 1)
-                            const { mintItem } = useGameStore.getState();
-                            mintItem(targetAddr, 101, 3, 1, 50);
-                        }}
-                        disabled={isLoading}
-                    >
-                        <Wheat size={12} className="mr-2" /> +50 Grain
-                    </Button>
+                <div className="space-y-6 pt-4 border-t border-slate-800/50">
+                    {CATEGORIZED_ITEMS.filter(c => c.name !== 'Misc').map(category => (
+                        <div key={category.name} className="space-y-2">
+                            <div className={`text-[10px] font-black uppercase ml-1 flex items-center gap-2 ${category.color}`}>
+                                {category.icon} {category.name}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {category.items.map(item => (
+                                    <Button
+                                        key={item.id}
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-9 text-[10px] border-slate-800 bg-slate-900/40 text-slate-300 hover:border-cyan-500/50 hover:text-white font-bold justify-start px-3"
+                                        onClick={() => handleMintItem(item.id, item.cat)}
+                                        disabled={isLoading}
+                                    >
+                                        {isLoading ? <Loader2 className="animate-spin" size={12} /> : item.icon}
+                                        <span className="ml-2 uppercase tracking-tighter">Mint {item.name}</span>
+                                    </Button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
-
     );
 }

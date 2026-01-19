@@ -98,7 +98,8 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             if (data && data[0]) {
                 const mapped: Battle[] = await Promise.all(data[0].map(async (id: any, i: number) => {
                     const battleId = Number(id);
-                    const roundDetails = await ContractService.getBattleRoundDetails(battleId);
+                    // getBattleInfo returns the full Battle struct including current_round
+                    const roundDetails = await ContractService.getBattleInfo(battleId);
 
                     return {
                         id: String(id),
@@ -106,23 +107,17 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
                         region: `Region ${data[1][i]}`,
                         attacker: String(data[2][i]),
                         defender: String(data[3][i]),
-                        attackerDamage: roundDetails?.attackerDamage || 0,
-                        defenderDamage: roundDetails?.defenderDamage || 0,
+                        attackerDamage: roundDetails?.attacker_damage || 0, // Properties might be snake_case in Move response
+                        defenderDamage: roundDetails?.defender_damage || 0,
                         wallPercentage: Number(data[4][i]),
                         startTime: 0,
                         endTime: Number(data[5][i]) * 1000,
-                        currentRound: roundDetails?.currentRound || 1,
-                        attackerPoints: roundDetails?.attackerPoints || 0,
-                        defenderPoints: roundDetails?.defenderPoints || 0,
-                        roundEndTime: roundDetails?.roundEndTime ? roundDetails.roundEndTime * 1000 : undefined,
-                        attackerTop: roundDetails?.attackerTopAddr ? {
-                            address: roundDetails.attackerTopAddr,
-                            influence: roundDetails.attackerTopInfluence
-                        } : undefined,
-                        defenderTop: roundDetails?.defenderTopAddr ? {
-                            address: roundDetails.defenderTopAddr,
-                            influence: roundDetails.defenderTopInfluence
-                        } : undefined
+                        currentRound: roundDetails?.current_round || 1,
+                        attackerPoints: 0, // BattleInfo might not have round points directly?
+                        defenderPoints: 0,
+                        roundEndTime: undefined, // BattleInfo logic differs
+                        attackerTop: undefined,
+                        defenderTop: undefined
                     };
                 }));
                 set({ activeBattles: mapped });
@@ -164,8 +159,7 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             if (tx) {
                 setTimeout(() => {
                     get().fetchBattles();
-                    get().fetchDashboardData();
-                    get().fetchInventory(); // Refresh after item consumption
+                    // Optional: refresh user data if slice allows
                 }, 2000);
             }
         } catch (e) {

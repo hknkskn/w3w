@@ -63,10 +63,7 @@ export interface MarketItem extends Item {
     seller: string;
     sellerCountry?: CountryId;
     category: string;
-    // Optional specific fields for market display
-    damage?: number;
-    durability?: number;
-    energyRestore?: number;
+    originalItemId?: number;
 }
 
 export interface InventoryItem extends Item {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '@/lib/store';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
-import { Shield, Wallet, MapPin, User, ChevronRight, Download, RefreshCw, ArrowRight } from 'lucide-react';
+import { Shield, Wallet, MapPin, User, ChevronRight, Download, RefreshCw, ArrowRight, Coins } from 'lucide-react';
 import { WalletService } from '@/lib/wallet';
 
 const COUNTRIES: { id: CountryId; name: string }[] = [
@@ -23,7 +23,7 @@ export default function LoginScreen() {
     const login = useGameStore(state => state.login);
 
     // UI State
-    const [step, setStep] = useState<'CONNECT' | 'REGISTER'>('CONNECT');
+    const [step, setStep] = useState<'CONNECT' | 'REGISTER' | 'SYNC'>('CONNECT');
     const [username, setUsername] = useState('');
     const [selectedCountry, setSelectedCountry] = useState<CountryId>('TR');
 
@@ -80,19 +80,20 @@ export default function LoginScreen() {
             let isRegistered = await ContractService.checkRegistration(address);
 
             if (isRegistered) {
-                // Determine user profile (Mock or Fetch)
-                // Ideally fetch profile here
                 const profile = await ContractService.getProfile(address);
-                if (profile) {
+                const hasCoin = await ContractService.hasCoinRegister(address);
+
+                if (!hasCoin) {
+                    setStep('SYNC');
+                    setIsConnecting(false);
+                } else if (profile) {
                     login(profile.username, selectedCountry, address);
                 } else {
-                    // Fallback if profile fetch fails but registration is true (shouldn't happen often)
                     login("Unknown Soldier", 'TR', address);
                 }
             } else {
-                // Not registered -> Show Form
                 setStep('REGISTER');
-                setIsConnecting(false); // Stop loading, let user fill form
+                setIsConnecting(false);
             }
 
         } catch (err: any) {
@@ -123,12 +124,79 @@ export default function LoginScreen() {
             setError('Waiting for network confirmation...');
             await new Promise(r => setTimeout(r, 4000));
 
-            // Successful Registration -> Login
-            login(username, selectedCountry, walletAddress);
+            // Check if coin needs registration
+            const hasCoin = await ContractService.hasCoinRegister(walletAddress);
+            if (!hasCoin) {
+                setStep('SYNC');
+                setIsConnecting(false);
+            } else {
+                login(username, selectedCountry, walletAddress);
+            }
 
         } catch (txError: any) {
             console.error("Registration failed:", txError);
-            setError('Registration transaction failed. Please try again.');
+            setError(`Registration failed: ${txError?.message || 'Check wallet/network'}`);
+            setIsConnecting(false);
+        }
+    };
+
+    const handleSyncCoin = async () => {
+        setIsConnecting(true);
+        setError(null);
+        try {
+            const { ContractService } = await import('@/lib/contract-service');
+            setError('Sending coin registration transaction...');
+            await ContractService.registerCoin();
+
+            setError('Transaction sent. Monitoring network (Max 10m)...');
+
+            // Smart Polling: Check every 5 seconds for up to 10 minutes (120 attempts)
+            let attempts = 0;
+            const maxAttempts = 120; // 10 minutes
+
+            const pollInterval = setInterval(async () => {
+                attempts++;
+                try {
+                    const hasCoin = await ContractService.hasCoinRegister(walletAddress!);
+                    if (hasCoin) {
+                        clearInterval(pollInterval);
+                        const profile = await ContractService.getProfile(walletAddress!);
+                        login(profile?.username || username || "Soldier", selectedCountry, walletAddress!);
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(pollInterval);
+                        setError('Sync timed out after 10 minutes. Please try "Check Status".');
+                        setIsConnecting(false);
+                    }
+                } catch (e) {
+                    console.warn("Polling error:", e);
+                }
+            }, 5000);
+
+        } catch (e: any) {
+            console.error("Coin sync failed:", e);
+            if (e?.message?.includes('SEQUENCE_NUMBER_TOO_OLD')) {
+                setError('Sequence Number error. Your previous transaction might still be pending. Please wait a moment and click "Check Status".');
+            } else {
+                setError('Sync failed. If you already approved in your wallet, try "Check Status".');
+            }
+            setIsConnecting(false);
+        }
+    };
+
+    const handleCheckSync = async () => {
+        setIsConnecting(true);
+        try {
+            const { ContractService } = await import('@/lib/contract-service');
+            const hasCoin = await ContractService.hasCoinRegister(walletAddress!);
+            if (hasCoin) {
+                const profile = await ContractService.getProfile(walletAddress!);
+                login(profile?.username || username || "Soldier", selectedCountry, walletAddress!);
+            } else {
+                setError('Still not registered on-chain. Please wait or try again.');
+            }
+        } catch (e) {
+            setError('Failed to verify status.');
+        } finally {
             setIsConnecting(false);
         }
     };
@@ -201,7 +269,7 @@ export default function LoginScreen() {
                                 )}
                             </button>
                         </div>
-                    ) : (
+                    ) : step === 'REGISTER' ? (
                         <div className="space-y-5">
                             <div className="text-center mb-4">
                                 <h3 className="text-lg font-bold text-white">Create Your Identity</h3>
@@ -281,6 +349,88 @@ export default function LoginScreen() {
                             >
                                 Cancel & Return
                             </button>
+                        </div>
+                    ) : (
+                        /* SYNC STEP - Gamified */
+                        <div className="space-y-6 text-center">
+                            <div className="w-20 h-20 mx-auto bg-amber-500/10 rounded-full flex items-center justify-center border-2 border-amber-500/20 mb-4 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
+                                <Wallet className="w-10 h-10 text-amber-500" />
+                            </div>
+
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-black text-white uppercase tracking-tight">Tactical Wallet Sync</h3>
+                                <p className="text-sm text-slate-400">
+                                    Your military identity is ready. Now, authorize your tactical wallet to receive combat pay (CRED) and access the national bank.
+                                </p>
+                            </div>
+
+                            <div className="p-4 bg-slate-800/40 border border-slate-700 rounded-xl space-y-3">
+                                <div className="flex items-center gap-3 text-left">
+                                    <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                        <Shield size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">Status</p>
+                                        <p className="text-xs text-emerald-400 font-bold">Identity Verified</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-left opacity-50">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
+                                        <Coins size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-500 uppercase">National Bank</p>
+                                        <p className="text-xs text-amber-500 font-bold italic">Connection Required</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium text-center">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 gap-3">
+                                <button
+                                    onClick={handleSyncCoin}
+                                    disabled={isConnecting}
+                                    className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-amber-900/20 flex items-center justify-center gap-3 group"
+                                >
+                                    {isConnecting ? (
+                                        <RefreshCw className="animate-spin" size={20} />
+                                    ) : (
+                                        <>
+                                            <span>Authorize Tactical Wallet</span>
+                                            <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                                        </>
+                                    )}
+                                </button>
+
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={handleCheckSync}
+                                        disabled={isConnecting}
+                                        className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold py-3 rounded-xl border border-slate-700 transition-all"
+                                    >
+                                        Check Status
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (confirm("If you're already registered, you can proceed. If not, game features may fail. Proceed?")) {
+                                                login(username || "Soldier", selectedCountry, walletAddress!);
+                                            }
+                                        }}
+                                        className="flex-1 bg-slate-800/50 hover:bg-slate-800 text-slate-500 text-[10px] font-bold py-3 rounded-xl border border-slate-700/50 transition-all"
+                                    >
+                                        Skip & Enter
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p className="text-[10px] text-slate-500 font-medium italic">
+                                * This one-time authorization is required by the Supra Network Protocol. If you already registered, use "Check Status".
+                            </p>
                         </div>
                     )}
                 </div>

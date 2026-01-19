@@ -3,6 +3,7 @@ module web3war::military_unit {
     use std::vector;
     use std::string::String;
     use web3war::citizen;
+    use web3war::admin;
 
     // ============================================
     // ERRORS
@@ -42,10 +43,12 @@ module web3war::military_unit {
     // ============================================
 
     fun init_module(admin: &signer) {
-        move_to(admin, MURegistry {
-            next_id: 1,
-            units: vector::empty(),
-        });
+        if (!exists<MURegistry>(signer::address_of(admin))) {
+            move_to(admin, MURegistry {
+                units: vector::empty(),
+                next_id: 1,
+            });
+        };
     }
 
     // ============================================
@@ -56,8 +59,10 @@ module web3war::military_unit {
     public entry fun create_unit(account: &signer, name: String) acquires MURegistry {
         let addr = signer::address_of(account);
         
-        // 1. Deduct Cost
-        citizen::deduct_credits(addr, UNIT_CREATION_COST);
+        // 1. Deduct Cost (Free for admins)
+        if (!admin::is_admin(addr)) {
+            citizen::deduct_credits(addr, UNIT_CREATION_COST);
+        };
 
         let registry = borrow_global_mut<MURegistry>(@web3war);
         let unit_id = registry.next_id;

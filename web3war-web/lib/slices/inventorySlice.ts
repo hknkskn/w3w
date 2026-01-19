@@ -4,13 +4,32 @@ import { InventoryItem, Item } from '../types';
 
 export interface InventorySlice {
     inventory: InventoryItem[];
+    isInventoryOpen: boolean;
     fetchInventory: () => Promise<void>;
     addItemToInventory: (item: Item, quantity: number) => void;
     useItem: (itemId: string) => void;
+    toggleInventory: (open?: boolean) => void;
+    initInventory: () => Promise<void>;
 }
 
 export const createInventorySlice: StateCreator<GameState, [], [], InventorySlice> = (set, get) => ({
     inventory: [], // Initial state
+    isInventoryOpen: false,
+
+    toggleInventory: (open) => {
+        set({ isInventoryOpen: open !== undefined ? open : !get().isInventoryOpen });
+    },
+
+    initInventory: async () => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            await ContractService.initInventory();
+            alert("Inventory initialized! You can now receive items.");
+            get().fetchInventory();
+        } catch (e) {
+            console.error("Failed to initialize inventory:", e);
+        }
+    },
 
     fetchInventory: async () => {
         const user = get().user;
@@ -20,59 +39,16 @@ export const createInventorySlice: StateCreator<GameState, [], [], InventorySlic
             const { ContractService } = await import('../contract-service');
             const chainItems = await ContractService.getInventory(user.walletAddress);
 
+            const { getItemFromOntology } = await import('../ontology');
+
             const inventoryItems: InventoryItem[] = chainItems.map((item: any) => {
                 const itemId = Number(item.id);
-                let name = `Item #${item.id}`;
-                let type: any = 'material';
-                let image = '📦';
-                let energyRestore = undefined;
-                let damage = undefined;
-
-                // Category 1: Food (201)
-                if (item.category === 1) {
-                    type = 'food';
-                    name = itemId === 201 ? "Food" : `Food Q${item.quality}`;
-                    image = '🍞';
-                    energyRestore = item.quality * 20;
-                }
-                // Category 2: Equipment (202, 204)
-                else if (item.category === 2) {
-                    type = 'weapon';
-                    if (itemId === 204) {
-                        name = "Missile";
-                        image = "🚀";
-                        damage = 50 * item.quality;
-                    } else {
-                        name = "Weapon";
-                        image = "⚔️";
-                        damage = 10 * item.quality;
-                    }
-                }
-                // Category 3: Raw Materials (101-104)
-                else if (item.category === 3) {
-                    type = 'material';
-                    if (itemId === 101) { name = "Grain"; image = "🌾"; }
-                    else if (itemId === 102) { name = "Iron"; image = "⚒️"; }
-                    else if (itemId === 103) { name = "Oil"; image = "🛢️"; }
-                    else if (itemId === 104) { name = "Aluminum"; image = "💎"; }
-                }
-                // Category 4: Specialized (203)
-                else if (item.category === 4) {
-                    type = 'ticket';
-                    name = "Ticket";
-                    image = "🎫";
-                }
+                const ontologyItem = getItemFromOntology(itemId, item.quality);
 
                 return {
-                    id: String(item.id),
-                    name,
-                    type,
-                    quality: item.quality,
-                    image,
-                    quantity: Number(item.quantity),
-                    energyRestore,
-                    damage
-                };
+                    ...ontologyItem,
+                    quantity: Number(item.quantity)
+                } as InventoryItem;
             });
 
             set({ inventory: inventoryItems });

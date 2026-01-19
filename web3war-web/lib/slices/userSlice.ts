@@ -81,8 +81,8 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             }
 
             // 2. Fetch Wallet Balances
-            const credBalance = await ContractService.getCoinBalance(walletAddress);
-            const supraBalance = await ContractService.getSupraBalance(walletAddress);
+            const credBalance = await (ContractService as any).getCoinBalance(walletAddress);
+            const supraBalance = await (ContractService as any).getSupraBalance(walletAddress);
 
             // 3. Check Admin Status
             const isAdmin = await ContractService.isAdmin(walletAddress);
@@ -163,8 +163,8 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
                 set({
                     trainingInfo: {
                         qualities: info.qualities,
-                        lastTrainTime: info.last_train_time,
-                        totalTrains: info.total_trains
+                        lastTrainTime: info.lastTrainTime,
+                        totalTrains: info.totalTrains
                     }
                 });
             }
@@ -302,6 +302,10 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
                         walletBalance: supraBalance
                     }
                 }));
+
+                // Refresh extra info
+                get().fetchTraining();
+                get().fetchInventory();
             }
         } catch (e) {
             console.error("Dashboard fetch error:", e);
@@ -311,20 +315,26 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
     mintCredits: async (target, amount) => {
         try {
             const { ContractService } = await import('../contract-service');
-            await ContractService.mintCredits(target, amount);
-            await get().fetchDashboardData();
+            const tx = await ContractService.mintCredits(target, amount * 100);
+            if (tx) {
+                alert(`Credits minted for ${target}!`);
+                get().fetchDashboardData();
+            }
         } catch (e) {
-            console.error("Mint credits error:", e);
+            console.error("Mint credits failed:", e);
         }
     },
 
     addEnergy: async (target, amount) => {
         try {
             const { ContractService } = await import('../contract-service');
-            await ContractService.addEnergy(target, amount);
-            await get().fetchDashboardData();
+            const tx = await ContractService.addEnergy(target, amount);
+            if (tx) {
+                alert(`Energy added to ${target}!`);
+                get().fetchDashboardData();
+            }
         } catch (e) {
-            console.error("Add energy error:", e);
+            console.error("Add energy failed:", e);
         }
     },
 

@@ -3,13 +3,15 @@
 module web3war::company {
     use std::signer;
     use std::vector;
-    use aptos_framework::coin;
+    // use aptos_framework::coin;
     use aptos_framework::event;
     
+    use aptos_framework::coin;
     use web3war::cred_coin::CRED;
     use web3war::inventory;
     use web3war::citizen;
     use web3war::territory;
+    use web3war::admin;
 
     // ============================================
     // ERRORS
@@ -130,15 +132,20 @@ module web3war::company {
     // ============================================
     
     fun init_module(admin: &signer) {
-        move_to(admin, CompanyRegistry { next_id: 1, companies: vector::empty() });
-        move_to(admin, CompanyConfig {
-            admin: signer::address_of(admin),
-            creation_fee: 1000 * 100000000, // 1000 SUPRA
-            upgrade_tier_2: 2500 * 100000000,
-            upgrade_tier_3: 5000 * 100000000,
-            upgrade_tier_4: 10000 * 100000000,
-            upgrade_tier_5: 20000 * 100000000,
-        });
+        let addr = signer::address_of(admin);
+        if (!exists<CompanyRegistry>(addr)) {
+            move_to(admin, CompanyRegistry { next_id: 1, companies: vector::empty() });
+        };
+        if (!exists<CompanyConfig>(addr)) {
+            move_to(admin, CompanyConfig {
+                admin: addr,
+                creation_fee: 1000 * 100000000, 
+                upgrade_tier_2: 2500 * 100000000,
+                upgrade_tier_3: 5000 * 100000000,
+                upgrade_tier_4: 10000 * 100000000,
+                upgrade_tier_5: 20000 * 100000000,
+            });
+        };
     }
 
     /// Update fees (Admin only)
@@ -170,8 +177,10 @@ module web3war::company {
         let owner = signer::address_of(account);
         let config = borrow_global<CompanyConfig>(@web3war);
         
-        // Fee: 1000 SUPRA
-        aptos_framework::coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, config.creation_fee);
+        // Fee: 1000 SUPRA (Free for admins)
+        if (!admin::is_admin(owner)) {
+            aptos_framework::coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, config.creation_fee);
+        };
 
         let reg = borrow_global_mut<CompanyRegistry>(@web3war);
         let id = reg.next_id;
@@ -195,10 +204,10 @@ module web3war::company {
         event::emit(CompanyCreated { id, owner, co_type });
     }
 
-    /// Deposit funds into company treasury to pay salaries (from signer's credits profile)
+    /// Deposit funds into company treasury (Transfer real FT CRED to game treasury)
     public entry fun deposit_funds(account: &signer, company_id: u64, amount: u64) acquires CompanyRegistry {
-        let addr = signer::address_of(account);
-        citizen::deduct_credits(addr, amount);
+        coin::transfer<CRED>(account, @web3war, amount);
+
 
         let reg = borrow_global_mut<CompanyRegistry>(@web3war);
         let company = find_company_mut(&mut reg.companies, company_id);
@@ -369,7 +378,9 @@ module web3war::company {
             config.upgrade_tier_5
         };
 
-        aptos_framework::coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, supra_cost);
+        if (!admin::is_admin(owner)) {
+            aptos_framework::coin::transfer<0x1::supra_coin::SupraCoin>(account, @web3war, supra_cost);
+        };
 
         company.quality = company.quality + 1;
     }
@@ -394,6 +405,8 @@ module web3war::company {
         // 3. Process Production & Consumption (SCALED BY QUALITY)
         let quality_multiplier = (company.quality as u64); // Q1=1x, Q7=7x
         let bonus_pct = territory::get_production_bonus(company.region_id, company.co_type);
+
+        let produced_amount: u64;
 
         if (company.co_type <= 10) { 
             // RAW MATERIAL COMPANY
@@ -455,7 +468,7 @@ module web3war::company {
                 co_type: c.co_type,
                 quality: c.quality,
                 region_id: c.region_id,
-                balance: coin::value(&c.balance),
+                balance: c.balance,
                 raw_stock: c.raw_stock,
                 product_stock: c.product_stock,
                 employees: c.employees,

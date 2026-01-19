@@ -6,10 +6,11 @@ module web3war::marketplace {
     use aptos_framework::timestamp;
     use aptos_framework::event;
     
-    use web3war::citizen;
-    use web3war::treasury;
+    use aptos_framework::coin;
+    
     use web3war::inventory;
     use web3war::governance;
+    use web3war::cred_coin::CRED;
 
     // ============================================
     // ERRORS
@@ -87,10 +88,12 @@ module web3war::marketplace {
     // ============================================
     
     fun init_module(admin: &signer) {
-        move_to(admin, MarketplaceState {
-            next_listing_id: 1,
-            active_listings: vector::empty(),
-        });
+        if (!exists<MarketplaceState>(signer::address_of(admin))) {
+            move_to(admin, MarketplaceState {
+                next_listing_id: 1,
+                active_listings: vector::empty(),
+            });
+        };
     }
 
     // ============================================
@@ -197,10 +200,11 @@ module web3war::marketplace {
             vector::remove(&mut state.active_listings, index);
         };
         
-        // Transfer Credits
-        citizen::deduct_credits(buyer, total_price); // Buyer pays full price
-        citizen::add_credits(seller_addr, total_price - tax); // Seller gets net
-        treasury::deposit_tax(listing_country, tax, 3); // 3 = Sales Tax (VAT)
+        // Transfer Credits (FT TRANSFERS)
+        coin::transfer<CRED>(account, seller_addr, total_price - tax);
+        coin::transfer<CRED>(account, @web3war, tax); // Simplified: Transfer tax to admin/treasury addr
+        // treasury::deposit_tax(listing_country, tax, 3); // We will update treasury to handle Coins later or keep this as tracking
+
 
         // Transfer Items
         inventory::add_item(

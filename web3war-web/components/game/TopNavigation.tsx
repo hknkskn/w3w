@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TacticalDropdown } from './TacticalDropdown';
+import { useGameStore } from '@/lib/store';
 
 export function TopNavigation() {
     const pathname = usePathname();
@@ -73,7 +74,7 @@ export function TopNavigation() {
                 active={pathname === '/market'}
                 items={[
                     { label: 'Market', href: '/market', icon: ShoppingBag, description: 'Buy & Sell items' },
-                    { label: 'Inventory', icon: Backpack, href: '/profile', description: 'Your equipment' },
+                    { label: 'Inventory', icon: Backpack, href: '/inventory', description: 'Your equipment' },
                     { label: 'Job Market', icon: Users, href: '/companies', description: 'Personnel hiring' },
                 ]}
             />

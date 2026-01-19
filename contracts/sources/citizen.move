@@ -4,6 +4,9 @@ module web3war::citizen {
     use aptos_framework::event;
     use aptos_framework::timestamp;
     use web3war::inventory;
+    use web3war::admin;
+    use aptos_framework::coin;
+    use web3war::cred_coin::{Self, CRED};
 
     // ... (existing constants)
     const MAX_ENERGY: u64 = 200;
@@ -25,7 +28,7 @@ module web3war::citizen {
         last_energy_update: u64,
         strength: u64,
         rank_points: u64,
-        credits: u64,
+        // credits field removed - using FT balance instead
         employer_id: u64,
     }
 
@@ -57,7 +60,9 @@ module web3war::citizen {
     }
 
     fun init_module(admin: &signer) {
-        move_to(admin, CitizenRegistry { next_id: 1 });
+        if (!exists<CitizenRegistry>(signer::address_of(admin))) {
+            move_to(admin, CitizenRegistry { next_id: 1 });
+        };
     }
     
     public entry fun register(account: &signer, username: String, citizenship: u8) acquires CitizenRegistry {
@@ -84,9 +89,13 @@ module web3war::citizen {
             last_energy_update: now,
             strength: 10,
             rank_points: 0,
-            credits: 500,
+            // credits: 500, // removed
             employer_id: 0,
         });
+
+        // Initialize coin register for new users if possible? 
+        // No, entry function register needs signer to register for coin.
+        // We'll handle coin registration in frontend or a separate call.
 
         event::emit(CitizenRegistered { id, addr, username, citizenship });
     }
@@ -112,6 +121,12 @@ module web3war::citizen {
     public fun get_strength(addr: address): u64 acquires CitizenProfile {
         if (!exists<CitizenProfile>(addr)) return 0;
         borrow_global<CitizenProfile>(addr).strength
+    }
+
+    #[view]
+    public fun get_level(addr: address): u64 acquires CitizenProfile {
+        if (!exists<CitizenProfile>(addr)) return 0;
+        borrow_global<CitizenProfile>(addr).level
     }
 
     /// Internal helper to spend energy
@@ -212,18 +227,18 @@ module web3war::citizen {
     }
 
     /// Add Credits to citizen (e.g. from sales)
-    public fun add_credits(addr: address, amount: u64) acquires CitizenProfile {
-        assert!(exists<CitizenProfile>(addr), E_NOT_REGISTERED);
-        let profile = borrow_global_mut<CitizenProfile>(addr);
-        profile.credits = profile.credits + amount;
+    /// Now sends real FT CRED tokens by minting from treasury/admin
+    public fun add_credits(addr: address, amount: u64) {
+        if (coin::is_account_registered<CRED>(addr)) {
+            cred_coin::internal_mint(addr, amount);
+        }
     }
 
-    /// Deduct Credits from citizen (e.g. for purchases)
-    public fun deduct_credits(addr: address, amount: u64) acquires CitizenProfile {
-        assert!(exists<CitizenProfile>(addr), E_NOT_REGISTERED);
-        let profile = borrow_global_mut<CitizenProfile>(addr);
-        assert!(profile.credits >= amount, 2); // E_INSUFFICIENT_FUNDS
-        profile.credits = profile.credits - amount;
+    /// Deduct Credits from citizen - NOW DEPRECATED
+    /// Purchases should use coin::transfer directly.
+    public fun deduct_credits(_addr: address, _amount: u64) {
+        // No-op or abort to find callers
+        abort 999 
     }
 
     /// Set employment status
@@ -231,6 +246,27 @@ module web3war::citizen {
         assert!(exists<CitizenProfile>(addr), E_NOT_REGISTERED);
         let profile = borrow_global_mut<CitizenProfile>(addr);
         profile.employer_id = company_id;
+    }
+
+    /// Admin only: Mint Credits for testing (Mints real FT CRED)
+    public entry fun mint_credits(account: &signer, target: address, amount: u64) {
+        let caller = signer::address_of(account);
+        assert!(admin::is_admin(caller), 99); // E_NOT_ADMIN
+        
+        cred_coin::mint(account, target, amount);
+    }
+
+    /// Admin only: Add Energy for testing
+    public entry fun add_energy(account: &signer, target: address, amount: u64) acquires CitizenProfile {
+        let caller = signer::address_of(account);
+        assert!(admin::is_admin(caller), 99); 
+        
+        let profile = borrow_global_mut<CitizenProfile>(target);
+        if (profile.energy + amount > MAX_ENERGY) {
+            profile.energy = MAX_ENERGY;
+        } else {
+            profile.energy = profile.energy + amount;
+        };
     }
 
     // ============================================
@@ -266,7 +302,8 @@ module web3war::citizen {
             MAX_ENERGY,
             profile.strength,
             profile.rank_points,
-            profile.credits,
+            0, // profile.credits removed, using 0 for legacy view compat
+
             profile.employer_id
         )
     }
@@ -289,18 +326,27 @@ module web3war::citizen {
         }
     }
 
-    /// Aggregator view for frontend dashboard
+    // Aggregator view for frontend dashboard
     #[view]
     public fun get_dashboard_data(addr: address): (u64, u64, u64, u64, u64) acquires CitizenProfile {
         if (!exists<CitizenProfile>(addr)) return (0, 0, 0, 0, 0);
         let profile = borrow_global<CitizenProfile>(addr);
         
+        let now = timestamp::now_seconds();
+        let hours_passed = (now - profile.last_energy_update) / 3600;
+        let regen = hours_passed * ENERGY_REGEN_PER_HOUR;
+        let current_energy = if (profile.energy + regen > MAX_ENERGY) {
+            MAX_ENERGY
+        } else {
+            profile.energy + regen
+        };
+
         (
             profile.level,
             profile.xp,
-            get_energy(addr), // Current dynamic energy
+            current_energy,
             profile.strength,
-            profile.credits
+            0 // profile.credits removed, returning 0 for legacy view compat
         )
     }
 }

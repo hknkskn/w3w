@@ -98,7 +98,7 @@ module web3war::battle {
         influence: u128,
     }
 
-    struct RoundData has key, store {
+    struct RoundData has key, store, copy, drop {
         battle_id: u64,
         attacker_top: RoundTopDamager,
         defender_top: RoundTopDamager,
@@ -153,16 +153,23 @@ module web3war::battle {
     // ============================================
     
     fun init_module(admin: &signer) {
-        move_to(admin, BattleRegistry {
-            next_id: 1,
-            active_battles: vector::empty(),
-        });
-        move_to(admin, BattleStore {
-            battles: vector::empty(),
-        });
-        move_to(admin, BattleRoundsRegistry {
-            rounds: vector::empty(),
-        });
+        let addr = signer::address_of(admin);
+        if (!exists<BattleRegistry>(addr)) {
+            move_to(admin, BattleRegistry {
+                next_id: 1,
+                active_battles: vector::empty(),
+            });
+        };
+        if (!exists<BattleStore>(addr)) {
+            move_to(admin, BattleStore {
+                battles: vector::empty(),
+            });
+        };
+        if (!exists<BattleRoundsRegistry>(addr)) {
+            move_to(admin, BattleRoundsRegistry {
+                rounds: vector::empty(),
+            });
+        };
     }
 
     // ============================================
@@ -406,7 +413,7 @@ module web3war::battle {
         let now = timestamp::now_seconds();
         assert!(now >= battle.end_time, E_BATTLE_ENDED);
         
-        // Determine winner based on points (Simplified: بیشتر امتیاز برنده است)
+        // Determine winner based on points (Simplified: higher points win)
         let winner = if (battle.attacker_points > battle.defender_points) {
             battle.result = 1;
             battle.attacker_country
@@ -550,14 +557,14 @@ module web3war::battle {
         let rounds = &registry.rounds;
         let i = 0;
         let len = vector::length(rounds);
-        let round_found = false;
+        // let round_found = false;
         let r_ptr: &RoundData = &RoundData { battle_id: 0, attacker_top: RoundTopDamager { addr: @0x0, influence: 0 }, defender_top: RoundTopDamager { addr: @0x0, influence: 0 } };
 
         while (i < len) {
             let r = vector::borrow(rounds, i);
             if (r.battle_id == battle_id) {
                 r_ptr = r;
-                round_found = true;
+                // round_found = true;
                 break
             };
             i = i + 1;

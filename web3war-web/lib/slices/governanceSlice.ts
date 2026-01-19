@@ -17,6 +17,7 @@ export interface GovernanceSlice {
     voteForCandidate: (countryId: number, candidateIdx: number) => Promise<void>;
     createProposal: (countryId: number, type: number, data: number[]) => Promise<void>;
     voteOnProposal: (proposalId: number, support: boolean) => Promise<void>;
+    initializeGovernance: () => Promise<void>;
 }
 
 export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSlice> = (set, get) => ({
@@ -44,7 +45,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
         if (!user || !user.walletAddress) return;
         try {
             const { ContractService } = await import('../contract-service');
-            const isMember = await ContractService.checkCongressMember(user.walletAddress, countryId);
+            const isMember = await (ContractService as any).checkCongressMember(user.walletAddress, countryId);
             set({ isCongressMember: !!isMember });
         } catch (e) {
             console.error("Store: Failed to check congress membership", e);
@@ -143,6 +144,36 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             }
         } catch (e) {
             console.error("Proposal voting failed:", e);
+        }
+    },
+
+    initializeGovernance: async () => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const countries = [
+                { id: 1, name: 'Nigeria' },
+                { id: 2, name: 'Ukraine' },
+                { id: 3, name: 'Russia' },
+                { id: 4, name: 'United States' },
+                { id: 5, name: 'Turkey' },
+                { id: 6, name: 'India' },
+                { id: 7, name: 'Spain' },
+                { id: 8, name: 'Poland' },
+                { id: 9, name: 'Brazil' },
+                { id: 10, name: 'France' }
+            ];
+
+            for (const country of countries) {
+                console.log(`Setting up ${country.name}...`);
+                await ContractService.setupCountry(country.id, country.name);
+                // Mini delay to avoid sequence number issues if not handled by SDK
+                await new Promise(r => setTimeout(r, 500));
+            }
+
+            alert("Governance initialized with 10 countries!");
+        } catch (e) {
+            console.error("Governance initialization failed:", e);
+            alert("Failed to initialize governance");
         }
     }
 });
