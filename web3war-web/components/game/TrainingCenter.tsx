@@ -1,149 +1,45 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useGameStore } from '@/lib/store';
+import { useTraining, REGIMEN_DATA } from '@/lib/hooks/useTraining';
 import { motion } from 'framer-motion';
 import {
     Zap,
     Coins,
     Sword,
-    Shield,
     Trophy,
-    ChevronRight,
     CheckCircle2,
     Clock,
     Flame,
     TrendingUp,
-    Dumbbell,
-    ArrowUpCircle,
-    Star
+    Star,
+    ArrowUpCircle
 } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
 import { IDSCard, IDSLabel } from '@/components/ui/ids';
 
-const REGIMEN_DATA = [
-    {
-        id: 0,
-        name: 'Basic Training',
-        image: '⛺',
-        baseStrength: 1.0,
-        baseEnergy: 5,
-    },
-    {
-        id: 1,
-        name: 'Military Academy',
-        image: '🏫',
-        baseStrength: 2.5,
-        baseEnergy: 1,
-    },
-    {
-        id: 2,
-        name: 'Special Forces',
-        image: '🏰',
-        baseStrength: 5.0,
-        baseEnergy: 1,
-    },
-    {
-        id: 3,
-        name: 'Top Secret Program',
-        image: '💎',
-        baseStrength: 10.0,
-        baseEnergy: 1,
-    }
-];
-
 export function TrainingCenter() {
-    const { user, train, trainingInfo, trainingPricing, fetchTraining, fetchTrainingPricing, upgradeTrainingGrounds } = useGameStore();
-    const [selectedIds, setSelectedIds] = useState<number[]>([0]);
-    const [isTraining, setIsTraining] = useState(false);
-
-    useEffect(() => {
-        fetchTraining();
-        fetchTrainingPricing();
-    }, [fetchTraining, fetchTrainingPricing]);
-
-    const toggleRegimen = (id: number) => {
-        if (selectedIds.includes(id)) {
-            setSelectedIds(prev => prev.filter(i => i !== id));
-        } else {
-            setSelectedIds(prev => [...prev, id]);
-        }
-    };
-
-    const getRegimenCost = (id: number) => {
-        if (id === 0) return 0;
-        if (!trainingPricing) return 0;
-        return trainingPricing.regimenCosts[id - 1] / 100;
-    };
-
-    const totalCost = user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => sum + getRegimenCost(id), 0);
-
-    const totalEnergy = user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => {
-        const item = REGIMEN_DATA.find(r => r.id === id);
-        return sum + (item?.baseEnergy || 0);
-    }, 0);
-
-    const getRegimenStrength = (id: number) => {
-        const item = REGIMEN_DATA.find(r => r.id === id);
-        const quality = Number(trainingInfo?.qualities[id] || 1);
-        if (isNaN(quality)) return item?.baseStrength || 1.0;
-        return (item?.baseStrength || 0) * quality;
-    };
-
-    const totalStrength = selectedIds.reduce((sum, id) => {
-        const val = getRegimenStrength(id);
-        return sum + (isNaN(val) ? 0 : val);
-    }, 0);
-
-    const lastTrain = Number(trainingInfo?.lastTrainTime || 0);
-    const now = Math.floor(Date.now() / 1000);
-    const cooldownActive = !user?.isAdmin && lastTrain > 0 && now < lastTrain + 86400;
-    const timeRemaining = Math.max(0, (lastTrain + 86400) - now);
-    const hoursRemaining = Math.floor(timeRemaining / 3600);
-    const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+    const {
+        user,
+        trainingInfo,
+        selectedIds,
+        isTraining,
+        cooldownActive,
+        timeRemaining,
+        totals,
+        methods
+    } = useTraining();
 
     const handleTrain = async () => {
-        if (selectedIds.length === 0) return;
-        if (cooldownActive) return;
-
-        const regimensToProcess = selectedIds.map(id => {
-            const data = REGIMEN_DATA.find(r => r.id === id)!;
-            return {
-                id,
-                cost: getRegimenCost(id),
-                strengthBonus: getRegimenStrength(id),
-                energyCost: id === 0 ? (5 + (user?.level || 0)) : 1
-            };
-        });
-
-        if (user && user.energy < totalEnergy) {
-            alert("Not enough energy!");
-            return;
-        }
-        if (user && user.credits < totalCost) {
-            alert("Not enough CRED!");
-            return;
-        }
-
-        setIsTraining(true);
         try {
-            await train(regimensToProcess);
-            setTimeout(() => setIsTraining(false), 1500);
-        } catch (e) {
-            setIsTraining(false);
+            await methods.handleTrainAction();
+        } catch (e: any) {
+            alert(e.message);
         }
     };
 
     const handleUpgrade = (e: React.MouseEvent, id: number) => {
         e.stopPropagation();
-        const quality = trainingInfo?.qualities[id] || 1;
-        if (quality >= 5) return;
-        const upgradeCost = trainingPricing?.upgradeCosts[quality - 1] || 250000000000;
-
-        if (confirm(`Upgrade this facility to Q${quality + 1} for ${(upgradeCost / 100000000).toLocaleString()} SUPRA?`)) {
-            upgradeTrainingGrounds(id);
-        }
+        methods.handleUpgradeAction(id);
     };
 
     // Strength Progress Bar Logic
@@ -178,7 +74,9 @@ export function TrainingCenter() {
                 <div className="flex items-center gap-4 px-5 py-3 bg-slate-950/50 rounded-xl border border-slate-800">
                     <div className="text-right">
                         <IDSLabel color="dim">Daily Training</IDSLabel>
-                        <div className="text-sm font-bold text-amber-400">{cooldownActive ? `${hoursRemaining}h ${minutesRemaining}m` : 'Available Now'}</div>
+                        <div className="text-sm font-bold text-amber-400">
+                            {cooldownActive ? `${timeRemaining.h}h ${timeRemaining.m}m ${timeRemaining.s}s` : 'Available Now'}
+                        </div>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 border border-amber-500/20">
                         <Clock size={18} />
@@ -199,13 +97,13 @@ export function TrainingCenter() {
                     {REGIMEN_DATA.map((regimen) => {
                         const quality = trainingInfo?.qualities[regimen.id] || 1;
                         const isSelected = selectedIds.includes(regimen.id);
-                        const cost = getRegimenCost(regimen.id);
-                        const strength = getRegimenStrength(regimen.id);
+                        const cost = methods.getRegimenCost(regimen.id);
+                        const strength = methods.getRegimenStrength(regimen.id);
 
                         return (
                             <div
                                 key={regimen.id}
-                                onClick={() => toggleRegimen(regimen.id)}
+                                onClick={() => methods.toggleRegimen(regimen.id)}
                                 className={`grid grid-cols-12 items-center p-4 transition-all cursor-pointer group ${isSelected
                                     ? 'bg-amber-500/5 border-l-2 border-amber-500'
                                     : 'hover:bg-slate-800/30 border-l-2 border-transparent'
@@ -284,20 +182,20 @@ export function TrainingCenter() {
                         <div className="text-center">
                             <IDSLabel color="dim" className="mb-1">Energy Req</IDSLabel>
                             <div className="flex items-center justify-center gap-2">
-                                <div className={`p-1.5 rounded-lg ${user && user.energy >= totalEnergy ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-500'}`}>
+                                <div className={`p-1.5 rounded-lg ${user && user.energy >= totals.energy ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-500'}`}>
                                     <Zap size={16} />
                                 </div>
-                                <span className={`text-xl font-bold font-mono ${user && user.energy >= totalEnergy ? 'text-white' : 'text-red-500'}`}>{totalEnergy}</span>
+                                <span className={`text-xl font-bold font-mono ${user && user.energy >= totals.energy ? 'text-white' : 'text-red-500'}`}>{totals.energy}</span>
                             </div>
                         </div>
 
                         <div className="text-center">
                             <IDSLabel color="dim" className="mb-1">Cred Cost</IDSLabel>
                             <div className="flex items-center justify-center gap-2">
-                                <div className={`p-1.5 rounded-lg ${user && user.credits >= totalCost ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
+                                <div className={`p-1.5 rounded-lg ${user && user.credits >= totals.cost ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-500'}`}>
                                     <Coins size={16} />
                                 </div>
-                                <span className={`text-xl font-bold font-mono ${user && user.credits >= totalCost ? 'text-white' : 'text-red-500'}`}>{totalCost.toFixed(2)}</span>
+                                <span className={`text-xl font-bold font-mono ${user && user.credits >= totals.cost ? 'text-white' : 'text-red-500'}`}>{totals.cost.toFixed(2)}</span>
                             </div>
                         </div>
 
@@ -307,7 +205,7 @@ export function TrainingCenter() {
                                 <div className="p-1.5 bg-red-500/10 rounded-lg text-red-400">
                                     <TrendingUp size={16} />
                                 </div>
-                                <span className="text-xl font-black text-red-500 font-mono">+{totalStrength.toFixed(1)} <span className="text-[10px]">STR</span></span>
+                                <span className="text-xl font-black text-red-500 font-mono">+{totals.strength.toFixed(1)} <span className="text-[10px]">STR</span></span>
                             </div>
                         </div>
                     </div>
@@ -318,7 +216,7 @@ export function TrainingCenter() {
                         className={`min-w-[200px] h-14 text-lg font-black tracking-widest uppercase transition-all shadow-xl ${isTraining || cooldownActive ? 'bg-slate-700 text-slate-500' : 'bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-500 hover:to-orange-500 shadow-red-500/20'
                             }`}
                     >
-                        {isTraining ? 'DEVELOPING...' : (cooldownActive ? `${hoursRemaining}H ${minutesRemaining}M` : 'START TRAINING')}
+                        {isTraining ? 'DEVELOPING...' : (cooldownActive ? `${timeRemaining.h}H ${timeRemaining.m}M` : 'START TRAINING')}
                     </Button>
                 </div>
             </div>

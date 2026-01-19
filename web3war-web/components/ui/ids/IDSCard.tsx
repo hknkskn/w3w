@@ -1,9 +1,10 @@
 import React from 'react';
+import { IDS_CLASSES } from './theme';
 
 interface IDSCardProps {
     children: React.ReactNode;
     className?: string;
-    variant?: 'default' | 'filled' | 'outline';
+    variant?: 'default' | 'outline' | 'flat';
     noPadding?: boolean;
 }
 
@@ -11,23 +12,16 @@ interface IDSCardProps {
  * Base Industrial Design System Card
  * Matches Dashboard's gold standard: bg-slate-800/60 + backdrop-blur + border-2 slate-700/50
  */
-export const IDSCard: React.FC<IDSCardProps> = ({
-    children,
-    className = '',
-    variant = 'default',
-    noPadding = false
-}) => {
-    const baseStyles = "relative rounded-xl shadow-lg transition-all duration-300";
-
+export function IDSCard({ children, className = '', variant = 'default', noPadding = false }: IDSCardProps) {
     const variants = {
-        default: "bg-slate-800/60 backdrop-blur-sm border-2 border-slate-700/50",
-        filled: "bg-slate-900/80 border-2 border-slate-800",
-        outline: "bg-transparent border-2 border-slate-800"
+        default: IDS_CLASSES.CARD_BASE,
+        outline: 'bg-transparent border-2 border-slate-800/50 rounded-xl',
+        flat: 'bg-slate-900/40 border border-slate-800 rounded-xl'
     };
 
     return (
-        <div className={`${baseStyles} ${variants[variant]} ${noPadding ? '' : 'p-4'} ${className}`}>
+        <div className={`${noPadding ? '' : 'p-4'} ${variants[variant]} ${className}`}>
             {children}
         </div>
     );
-};
+}

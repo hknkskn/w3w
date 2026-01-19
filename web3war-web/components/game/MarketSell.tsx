@@ -1,37 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { useGameStore } from '@/lib/store';
+import { useMarket } from '@/lib/hooks/useMarket';
 import { motion } from 'framer-motion';
 import { Package, Tag, Plus, Minus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { IDSCard, IDSLabel } from '@/components/ui/ids';
 
 export function MarketSell() {
-    const searchParams = useSearchParams();
-    const { inventory, listMarketItem } = useGameStore();
-    const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-    const [quantity, setQuantity] = useState(1);
-    const [price, setPrice] = useState(1);
+    const {
+        inventory,
+        selectedItemId,
+        selectedItem,
+        form,
+        methods
+    } = useMarket();
 
-    useEffect(() => {
-        const preSelected = searchParams.get('item');
-        if (preSelected && inventory.some(i => i.id === preSelected)) {
-            setSelectedItemId(preSelected);
+    const handleList = async () => {
+        try {
+            await methods.handleListAction();
+        } catch (e: any) {
+            alert(e.message || "Failed to post listing");
         }
-    }, [searchParams, inventory]);
-
-    const selectedItem = inventory.find(i => i.id === selectedItemId);
-
-    const handleList = () => {
-        if (!selectedItemId || !selectedItem) return;
-        if (quantity > selectedItem.quantity) return;
-
-        listMarketItem(selectedItemId, quantity, price);
-        setSelectedItemId(null);
-        setQuantity(1);
-        setPrice(1);
     };
 
     return (
@@ -53,10 +42,7 @@ export function MarketSell() {
                             inventory.map((item) => (
                                 <button
                                     key={item.id}
-                                    onClick={() => {
-                                        setSelectedItemId(item.id);
-                                        setQuantity(1);
-                                    }}
+                                    onClick={() => methods.selectItem(item.id)}
                                     className={`flex items-center gap-4 px-4 py-2.5 rounded-lg border transition-all text-left group h-16 ${selectedItemId === item.id
                                         ? 'bg-amber-500/5 border-amber-500/50 shadow-inner'
                                         : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/60'
@@ -111,16 +97,16 @@ export function MarketSell() {
                                     <IDSLabel color="dim">TRADING VOLUME</IDSLabel>
                                     <div className="flex items-center gap-2">
                                         <button
-                                            onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                            onClick={() => methods.updateQuantity(form.quantity - 1)}
                                             className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-white active:scale-95 transition-all shadow-md"
                                         >
                                             <Minus size={16} />
                                         </button>
                                         <div className="flex-1 h-10 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center font-black text-xl text-white font-mono shadow-inner">
-                                            {quantity}
+                                            {form.quantity}
                                         </div>
                                         <button
-                                            onClick={() => setQuantity(Math.min(selectedItem.quantity, quantity + 1))}
+                                            onClick={() => methods.updateQuantity(form.quantity + 1)}
                                             className="w-10 h-10 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-white active:scale-95 transition-all shadow-md"
                                         >
                                             <Plus size={16} />
@@ -135,8 +121,8 @@ export function MarketSell() {
                                     <div className="relative">
                                         <input
                                             type="number"
-                                            value={price}
-                                            onChange={(e) => setPrice(Math.max(0.01, parseFloat(e.target.value) || 0))}
+                                            value={form.price}
+                                            onChange={(e) => methods.updatePrice(parseFloat(e.target.value) || 0)}
                                             className="w-full h-10 bg-slate-950 border border-slate-800 rounded-lg p-2 text-white font-black text-xl font-mono focus:border-amber-500/40 focus:outline-none transition-all pl-12 text-center shadow-inner"
                                             step="0.01"
                                         />
@@ -153,7 +139,7 @@ export function MarketSell() {
                                 >
                                     <span>POST LISTING</span>
                                     <div className="flex items-center gap-1.5 text-emerald-100 font-mono text-lg">
-                                        <span>{(price * quantity).toFixed(2)}</span>
+                                        <span>{(form.price * form.quantity).toFixed(2)}</span>
                                         <span className="text-[8px] font-black">CRED</span>
                                     </div>
                                 </button>
