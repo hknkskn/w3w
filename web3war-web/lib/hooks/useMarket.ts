@@ -8,21 +8,24 @@ export function useMarket() {
     const searchParams = useSearchParams();
     const { inventory, listMarketItem } = useGameStore();
 
-    const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+    const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
     const [quantity, setQuantity] = useState(1);
     const [price, setPrice] = useState(1);
 
     // Initial item selection from URL
     useEffect(() => {
         const preSelected = searchParams.get('item');
-        if (preSelected && inventory.some(i => i.id === preSelected)) {
-            setSelectedItemId(preSelected);
+        if (preSelected) {
+            const numericId = Number(preSelected);
+            if (inventory.some(i => i.id === numericId)) {
+                setSelectedItemId(numericId);
+            }
         }
     }, [searchParams, inventory]);
 
     const selectedItem = inventory.find(i => i.id === selectedItemId);
 
-    const selectItem = useCallback((id: string) => {
+    const selectItem = useCallback((id: number) => {
         setSelectedItemId(id);
         setQuantity(1);
     }, []);

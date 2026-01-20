@@ -19,7 +19,7 @@ import {
     Clock,
     Trophy
 } from 'lucide-react';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 import {
     IDSCard,
     IDSLabel,
@@ -82,7 +82,8 @@ export default function DashboardPage() {
 
                     <IDSCard>
                         <IDSLabel color="bright" size="sm" className="mb-4 flex items-center gap-2">
-                            📊 Market Trends
+                            <img src="/icons/markettrend.webp" className="w-4 h-4 object-contain" alt="" />
+                            Market Trends
                         </IDSLabel>
                         <div className="space-y-3">
                             <div className="flex justify-between items-center text-xs">
@@ -107,18 +108,21 @@ export default function DashboardPage() {
 }
 
 function ProfileCard() {
-    const { user, trainingInfo } = useGameStore();
+    const { user, facilities } = useGameStore();
     if (!user) return null;
 
     const energy = user.energy || 0;
     const maxEnergy = user.maxEnergy || 200;
     const energyPercent = maxEnergy > 0 ? (energy / maxEnergy) * 100 : 0;
-    const countryConfig = COUNTRY_CONFIG[user.citizenship as CountryId];
+
+    // Reverse map countryId to code for config
+    const countryCode = (Object.keys(COUNTRY_IDS) as CountryId[]).find(k => COUNTRY_IDS[k] === user.countryId) || 'TR' as CountryId;
+    const countryConfig = COUNTRY_CONFIG[countryCode];
 
     return (
         <IDSCard noPadding className="overflow-hidden shadow-2xl">
             {/* Header with Avatar */}
-            <div className="relative bg-gradient-to-br from-slate-700 to-slate-900 p-4">
+            <div className="relative bg-gradient-to-br from-slate-800 to-slate-950 p-4">
                 <div className="flex items-center gap-4">
                     {/* Avatar with Country Badge */}
                     <div className="relative">
@@ -132,22 +136,22 @@ function ProfileCard() {
                                 alt=""
                             />
                         )}
-                        <div className="absolute -top-1 -left-1 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg">
+                        <div className="absolute -top-1 -left-1 bg-cyan-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded shadow-lg border border-cyan-400/30">
                             {user.level || 1}
                         </div>
                     </div>
 
                     {/* Quick Action Icons */}
                     <div className="flex gap-2">
-                        <button className="w-9 h-9 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white rounded-lg flex items-center justify-center text-slate-400 transition-all border border-slate-700/50 shadow-sm active:scale-90">
-                            <span className="text-sm">🏠</span>
+                        <button className="w-9 h-9 bg-slate-900/80 hover:bg-slate-800/80 hover:text-cyan-400 rounded-lg flex items-center justify-center text-slate-500 transition-all border border-slate-700/50 shadow-sm active:scale-90">
+                            <img src="/icons/dashboard.webp" className="w-4 h-4 object-contain opacity-50 hover:opacity-100" alt="" />
                         </button>
-                        <button className="w-9 h-9 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white rounded-lg flex items-center justify-center text-slate-400 transition-all border border-slate-700/50 shadow-sm active:scale-90">
-                            <span className="text-sm">✉️</span>
+                        <button className="w-9 h-9 bg-slate-900/80 hover:bg-slate-800/80 hover:text-cyan-400 rounded-lg flex items-center justify-center text-slate-500 transition-all border border-slate-700/50 shadow-sm active:scale-90">
+                            <img src="/icons/Training.webp" className="w-4 h-4 object-contain opacity-50 hover:opacity-100" alt="" />
                         </button>
-                        <button className="w-9 h-9 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white rounded-lg flex items-center justify-center text-slate-400 transition-all border border-slate-700/50 shadow-sm active:scale-90 relative">
-                            <span className="text-sm">🔔</span>
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full text-[9px] text-white font-black flex items-center justify-center ring-2 ring-slate-800 shadow-lg">1</span>
+                        <button className="w-9 h-9 bg-slate-900/80 hover:bg-slate-800/80 hover:text-cyan-400 rounded-lg flex items-center justify-center text-slate-500 transition-all border border-slate-700/50 shadow-sm active:scale-90 relative">
+                            <img src="/icons/industrial2.webp" className="w-4 h-4 object-contain opacity-50 hover:opacity-100" alt="" />
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-cyan-600 rounded-full text-[9px] text-white font-black flex items-center justify-center ring-2 ring-slate-800 shadow-lg">1</span>
                         </button>
                     </div>
                 </div>
@@ -156,10 +160,10 @@ function ProfileCard() {
             {/* Energy Section */}
             <div className="px-4 py-3 bg-slate-900/50 border-y border-slate-700/30">
                 <div className="flex items-center gap-3">
-                    <span className="text-amber-500">⚡</span>
+                    <img src="/icons/energie.webp" className="w-5 h-5 object-contain" alt="Energy" />
                     <div className="flex-1 h-5 bg-slate-950 rounded-full overflow-hidden border border-slate-800 relative shadow-inner">
                         <motion.div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-amber-400 rounded-full"
+                            className="h-full bg-gradient-to-r from-emerald-500 via-amber-400 to-orange-500 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.3)]"
                             initial={{ width: 0 }}
                             animate={{ width: `${energyPercent}%` }}
                             transition={{ duration: 1 }}
@@ -176,14 +180,18 @@ function ProfileCard() {
             <div className="px-4 py-3 space-y-2.5 bg-slate-900/20">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-amber-500/10 text-amber-500 text-sm border border-amber-500/20 shadow-inner">💰</span>
-                        <span className="font-black text-white font-mono leading-none">{(user.walletBalance || 0).toFixed(2)}</span>
+                        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 shadow-inner">
+                            <img src="/icons/supralogo.webp" className="w-4 h-4 object-contain" alt="" />
+                        </span>
+                        <span className="font-black text-white font-mono leading-none">{(user.supraBalance || 0).toFixed(2)}</span>
                     </div>
                     <IDSLabel color="dim" size="xs">SUPRA</IDSLabel>
                 </div>
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500 text-sm border border-emerald-500/20 shadow-inner">💵</span>
+                        <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-inner">
+                            <img src="/icons/money.png" className="w-4 h-4 object-contain" alt="" />
+                        </span>
                         <span className="font-black text-white font-mono leading-none">{(user.credits || 0).toFixed(2)}</span>
                     </div>
                     <IDSLabel color="dim" size="xs">CRED</IDSLabel>
@@ -203,10 +211,10 @@ function ProfileCard() {
             <div className="p-4 bg-slate-950/20">
                 <IDSLabel color="dim" size="xs" className="mb-3">Missions Status</IDSLabel>
                 <div className="grid grid-cols-4 gap-2.5">
-                    <IDSMissionIcon icon="🏋️" progress={(trainingInfo?.qualities?.[0]) || 1} max={5} href="/training" />
-                    <IDSMissionIcon icon="💼" done={!!user.employerId} href="/companies" />
-                    <IDSMissionIcon icon="⚔️" href="/battles" />
-                    <IDSMissionIcon icon="🎖️" href="/profile" />
+                    <IDSMissionIcon icon={<img src="/icons/Training.webp" className="w-4 h-4 object-contain" alt="" />} progress={facilities[0]?.quality || 1} max={5} href="/training" />
+                    <IDSMissionIcon icon={<img src="/icons/industrial2.webp" className="w-4 h-4 object-contain" alt="" />} done={!!user.employerId} href="/companies" />
+                    <IDSMissionIcon icon={<img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" />} href="/battles" />
+                    <IDSMissionIcon icon={<img src="/icons/Worldmap.webp" className="w-4 h-4 object-contain" alt="" />} href="/profile" />
                 </div>
             </div>
         </IDSCard>

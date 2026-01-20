@@ -6,21 +6,21 @@
 export const IDS_THEME = {
     colors: {
         card: {
-            bg: 'bg-slate-800/60',
+            bg: 'bg-slate-950/60',
             backdrop: 'backdrop-blur-sm',
-            border: 'border-slate-700/50',
-            shadow: 'shadow-lg',
+            border: 'border-slate-800/50',
+            shadow: 'shadow-2xl',
             radius: 'rounded-xl',
         },
         label: {
             dim: 'text-slate-500',
             bright: 'text-white',
-            accent: 'text-amber-500',
+            accent: 'text-cyan-400',
             danger: 'text-red-500',
             success: 'text-emerald-500',
         },
         brand: {
-            primary: 'amber',
+            primary: 'cyan',
             secondary: 'slate',
             accent: 'red',
         }

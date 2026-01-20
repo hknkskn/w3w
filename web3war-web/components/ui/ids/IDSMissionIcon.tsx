@@ -1,48 +1,30 @@
 import React from 'react';
 import Link from 'next/link';
-import { IDSCard } from './IDSCard';
 
 interface IDSMissionIconProps {
-    icon: React.ReactNode | string;
+    icon: React.ReactNode;
+    done?: boolean;
     progress?: number;
     max?: number;
-    done?: boolean;
-    href: string;
-    className?: string;
+    href?: string;
 }
 
-/**
- * IDSMissionIcon - Square grid-based progress/mission icon.
- * Derived from the Dashboard missions grid.
- */
-export const IDSMissionIcon: React.FC<IDSMissionIconProps> = ({
-    icon,
-    progress,
-    max,
-    done,
-    href,
-    className = ''
-}) => {
-    return (
-        <Link href={href}>
-            <IDSCard
-                noPadding
-                className={`aspect-square flex items-center justify-center hover:bg-slate-700/30 cursor-pointer overflow-hidden ${className}`}
-            >
-                <span className="text-2xl">{icon}</span>
-
-                {progress !== undefined && max !== undefined && (
-                    <div className="absolute bottom-1 right-1 text-[8px] font-black text-amber-500 bg-slate-950/90 px-1 rounded border border-slate-800 tabular-nums">
-                        {progress}/{max}
-                    </div>
-                )}
-
-                {done && (
-                    <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full flex items-center justify-center text-[8px] text-white shadow-lg border border-white/10 ring-1 ring-emerald-500/20">
-                        ✓
-                    </div>
-                )}
-            </IDSCard>
-        </Link>
+export function IDSMissionIcon({ icon, done, progress, max, href }: IDSMissionIconProps) {
+    const content = (
+        <div className={`relative group cursor-pointer`}>
+            <div className={`w-full aspect-square rounded-xl flex items-center justify-center transition-all border-2 ${done || (progress && progress >= (max || 0))
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                : 'bg-slate-900/50 border-slate-800 text-slate-500 group-hover:border-cyan-500/30'}`}>
+                {icon}
+            </div>
+            {progress && max && (
+                <div className="absolute -bottom-1 left-2 right-2 h-1 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                    <div className="h-full bg-cyan-500" style={{ width: `${(progress / max) * 100}%` }} />
+                </div>
+            )}
+        </div>
     );
-};
+
+    if (href) return <Link href={href}>{content}</Link>;
+    return content;
+}

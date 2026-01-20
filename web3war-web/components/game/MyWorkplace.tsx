@@ -2,18 +2,16 @@
 
 import { useState } from 'react';
 import { useGameStore } from '@/lib/store';
-import { Company, COMPANY_TYPES_CONFIG } from '@/lib/types';
+import { COMPANY_TYPES } from '@/lib/models/CompanyModel';
 import { Button } from '@/components/Button';
 import {
     Briefcase,
     Zap,
     Clock,
     DollarSign,
-    ExternalLink,
     AlertCircle,
     UserCheck,
     CheckCircle2,
-    XCircle,
     ArrowRight,
     TrendingUp,
     Shield,
@@ -21,27 +19,19 @@ import {
     Activity,
     Factory
 } from 'lucide-react';
-import { motion } from 'framer-motion';
 
 export default function MyWorkplace() {
-    const { user, companies, performWork, terminateContract } = useGameStore();
+    const { user, companies, work, resignJob } = useGameStore();
     const [isLoading, setIsLoading] = useState(false);
 
-    // Find the company the user works for
-    const employer = companies.find(c => {
-        const userIdLower = user?.id?.toLowerCase();
-        const walletLower = user?.walletAddress?.toLowerCase();
-        return c.employees.some(emp =>
-            emp.toLowerCase() === userIdLower ||
-            emp.toLowerCase() === walletLower
-        );
-    });
+    // Find the company the user works for using the new numeric employerId
+    const employer = companies.find(c => c.id === user?.employerId);
 
     const handleWork = async () => {
         if (!employer) return;
         setIsLoading(true);
         try {
-            await performWork(employer.id);
+            await work();
         } finally {
             setIsLoading(false);
         }
@@ -51,7 +41,7 @@ export default function MyWorkplace() {
         if (!employer || !confirm("Are you sure you want to terminate your contract?")) return;
         setIsLoading(true);
         try {
-            await terminateContract(employer.id);
+            await resignJob();
         } finally {
             setIsLoading(false);
         }
@@ -67,14 +57,19 @@ export default function MyWorkplace() {
                 <p className="text-slate-500 mt-2 max-w-sm mx-auto font-bold uppercase text-[10px] tracking-widest leading-relaxed">
                     You are not currently under contract with any industrial unit. Visit the Job Market to apply for open positions.
                 </p>
-                <Button className="mt-10 bg-cyan-600 hover:bg-cyan-500 px-10 h-14 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-cyan-900/10 transition-all active:scale-95">
+                <Button
+                    className="mt-10 bg-cyan-600 hover:bg-cyan-500 px-10 h-14 rounded-xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-cyan-900/10 transition-all active:scale-95"
+                    onClick={() => {
+                        window.location.href = '/market';
+                    }}
+                >
                     Browse Markets
                 </Button>
             </div>
         );
     }
 
-    const config = COMPANY_TYPES_CONFIG[employer.type];
+    const typeInfo = COMPANY_TYPES[employer.type];
 
     return (
         <div className="grid grid-cols-12 gap-8 animate-in fade-in duration-500">
@@ -83,20 +78,20 @@ export default function MyWorkplace() {
                 <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 space-y-8">
                     <div className="flex items-center gap-4">
                         <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-cyan-400 border border-slate-700">
-                            {employer.type.includes('RAW') ? <Package size={32} /> : <Shield size={32} />}
+                            {employer.type < 10 ? <Package size={32} /> : <Shield size={32} />}
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-white uppercase tracking-tight leading-none mb-1">{employer.name}</h3>
                             <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[9px] font-black uppercase">
-                                {config?.name}
+                                {typeInfo?.name || 'Industrial Unit'}
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-4">
                         <StatusLine icon={<Clock size={14} />} label="Contract Type" value="Active Duty" color="emerald" />
-                        <StatusLine icon={<DollarSign size={14} />} label="Salary Rate" value={`${employer.jobOffer?.salary.toFixed(1)} CRED`} color="emerald" />
-                        <StatusLine icon={<Activity size={14} />} label="Sector" value={employer.region} color="slate" />
+                        <StatusLine icon={<Activity size={14} />} label="Unit Type" value={typeInfo?.name || 'Production'} color="slate" />
+                        <StatusLine icon={<Shield size={14} />} label="Quality" value={`Grade ${employer.quality}`} color="amber" />
                     </div>
 
                     <div className="pt-4 border-t border-slate-800">
@@ -163,8 +158,8 @@ export default function MyWorkplace() {
                             onClick={handleWork}
                             disabled={isLoading || (user?.energy || 0) < 10}
                             className={`w-full h-24 rounded-2xl font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-4 shadow-2xl relative overflow-hidden ${isLoading || (user?.energy || 0) < 10
-                                    ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
-                                    : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20 active:scale-[0.98]'
+                                ? 'bg-slate-800 text-slate-600 cursor-not-allowed'
+                                : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20 active:scale-[0.98]'
                                 }`}
                         >
                             <Factory size={24} />

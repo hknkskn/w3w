@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
-import { Button } from '@/components/Button';
 import { ShoppingCart, TrendingUp, Package, Search, Filter, Star, Coins, Sword, Beef, Ticket, Home, Pickaxe } from 'lucide-react';
 import { MarketSell } from '@/components/game/MarketSell';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
@@ -30,52 +29,32 @@ export default function MarketPage() {
 
     const categories = [
         { id: 'all', name: 'All Items', icon: <Package size={18} /> },
-        { id: 'weapons', name: 'Weapons', icon: <Sword size={18} /> },
-        { id: 'food', name: 'Food', icon: <Beef size={18} /> },
-        { id: 'tickets', name: 'Tickets', icon: <Ticket size={18} /> },
-        { id: 'houses', name: 'Houses', icon: <Home size={18} /> },
+        { id: 'weapons', name: 'Weapons', icon: <Sword size={18} />, catId: 12 },
+        { id: 'food', name: 'Food', icon: <Beef size={18} />, catId: 11 },
+        { id: 'tickets', name: 'Tickets', icon: <Ticket size={18} />, catId: 13 },
         { id: 'raw', name: 'Raw Materials', icon: <Pickaxe size={18} /> },
     ];
 
     const filteredItems = view === 'buy'
-        ? (selectedCategory === 'all' ? marketItems : marketItems.filter(item => item.category === selectedCategory))
+        ? (selectedCategory === 'all'
+            ? marketItems
+            : marketItems.filter(l => {
+                const catInfo = categories.find(c => c.id === selectedCategory);
+                if (selectedCategory === 'raw') return l.item.category <= 4;
+                return l.item.category === catInfo?.catId;
+            }))
         : myListings;
 
-    const handleBuy = (item: any) => {
+    const handleBuy = (listing: any, quantity: number) => {
         if (!user) {
             alert("Please login first!");
             return;
         }
-        buyItem(item.id, item.quantity || 1);
+        buyItem(listing.listingId, quantity);
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-4 animate-in fade-in duration-500 pb-12 px-4 md:px-6">
-            {/* HD Industrial Header */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/80 rounded-xl p-5 border border-slate-800 shadow-xl mt-4">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-cyan-600/10 rounded-full flex items-center justify-center border border-cyan-600/20">
-                        <ShoppingCart className="text-cyan-400" size={28} />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-black text-white tracking-tighter leading-none">
-                            GLOBAL MARKETPLACE
-                        </h1>
-                        <div className="flex items-center gap-2 mt-1">
-                            <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" />
-                            <span className="text-[9px] text-cyan-400 font-black uppercase tracking-[0.2em]">OPERATIONAL SECTOR: {view === 'buy' ? 'PROCUREMENT & TRADING' : view === 'sell' ? 'INVENTORY LIQUIDATION' : 'LOGISTICS ESCROW'}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="text-right">
-                    <div className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">Available Credits</div>
-                    <div className="flex items-center justify-end gap-2 text-white mt-1">
-                        <Coins size={14} className="text-amber-500" />
-                        <span className="text-xl font-black font-mono tracking-tighter">{(user?.credits || 0).toFixed(2)} CRED</span>
-                    </div>
-                </div>
-            </div>
+        <div className="space-y-4 animate-in fade-in duration-500 pb-12 mt-2">
 
             {/* HD Tab Navigation */}
             <div className="flex items-center gap-1 p-1 bg-slate-900/80 rounded-lg border border-slate-800 overflow-x-auto no-scrollbar">
@@ -156,35 +135,35 @@ export default function MarketPage() {
                                         <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No Active Listings</p>
                                     </div>
                                 ) : (
-                                    filteredItems.map((item) => (
+                                    filteredItems.map((listing) => (
                                         <div
-                                            key={item.id}
+                                            key={listing.id}
                                             className="grid grid-cols-12 px-6 py-3.5 items-center hover:bg-slate-800/40 transition-all group h-18"
                                         >
                                             <div className="col-span-5 flex items-center gap-4">
                                                 <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center text-3xl group-hover:border-cyan-500/20 transition-all">
-                                                    {item.image}
+                                                    {listing.item.image}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="text-[13px] font-black text-white uppercase tracking-tight truncate leading-none mb-1 group-hover:text-cyan-400 transition-colors">
-                                                        {item.name}
+                                                        {listing.item.name}
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest leading-none border border-slate-800 px-1 py-0.5 rounded-sm">Q{item.quality} • {item.type}</span>
+                                                        <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest leading-none border border-slate-800 px-1 py-0.5 rounded-sm">Q{listing.item.quality} • {listing.item.category}</span>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div className="col-span-2 text-center">
                                                 <div className="text-sm font-bold font-mono text-white tabular-nums">
-                                                    {item.stock.toLocaleString()}
+                                                    {listing.item.quantity.toLocaleString()}
                                                 </div>
                                                 <div className="text-[8px] text-slate-600 font-black uppercase">UNITS</div>
                                             </div>
 
                                             <div className="col-span-2 text-center">
                                                 <div className="flex items-center justify-center gap-1.5 font-black text-amber-500 tabular-nums text-base font-mono">
-                                                    {item.price.toFixed(2)}
+                                                    {listing.pricePerUnit.toFixed(2)}
                                                 </div>
                                             </div>
 
@@ -194,15 +173,15 @@ export default function MarketPage() {
                                                         <input
                                                             type="number"
                                                             min="1"
-                                                            max={item.stock}
+                                                            max={listing.item.quantity}
                                                             className="w-10 h-8 bg-slate-950 border border-slate-800 rounded text-center text-[11px] font-mono font-bold text-cyan-400 focus:outline-none focus:border-cyan-500/30"
                                                             defaultValue="1"
-                                                            id={`qty-${item.id}`}
+                                                            id={`qty-${listing.id}`}
                                                         />
                                                         <button
                                                             onClick={() => {
-                                                                const qty = (document.getElementById(`qty-${item.id}`) as HTMLInputElement)?.value;
-                                                                handleBuy({ ...item, quantity: Number(qty) });
+                                                                const qty = (document.getElementById(`qty-${listing.id}`) as HTMLInputElement)?.value;
+                                                                handleBuy(listing, Number(qty));
                                                             }}
                                                             className="h-8 px-5 bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black text-white rounded active:scale-95 transition-all uppercase tracking-widest shadow-lg"
                                                         >
@@ -211,7 +190,7 @@ export default function MarketPage() {
                                                     </div>
                                                 ) : (
                                                     <button
-                                                        onClick={() => cancelMarketListing(item.id)}
+                                                        onClick={() => cancelMarketListing(listing.id)}
                                                         className="h-8 px-4 bg-slate-800 hover:bg-red-600 text-[9px] font-black text-slate-400 hover:text-white border border-slate-700 hover:border-red-500 rounded transition-all uppercase tracking-widest"
                                                     >
                                                         CANCEL

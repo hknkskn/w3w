@@ -5,8 +5,9 @@ import { CompanySlice, createCompanySlice } from './slices/companySlice';
 import { MarketSlice, createMarketSlice } from './slices/marketSlice';
 import { BattleSlice, createBattleSlice } from './slices/battleSlice';
 import { GovernanceSlice, createGovernanceSlice } from './slices/governanceSlice';
+import { UISlice, createUISlice } from './slices/uiSlice';
 
-export type GameState = UserSlice & InventorySlice & CompanySlice & MarketSlice & BattleSlice & GovernanceSlice;
+export type GameState = UserSlice & InventorySlice & CompanySlice & MarketSlice & BattleSlice & GovernanceSlice & UISlice;
 
 export const useGameStore = create<GameState>((...a) => ({
     ...createUserSlice(...a),
@@ -15,4 +16,5 @@ export const useGameStore = create<GameState>((...a) => ({
     ...createMarketSlice(...a),
     ...createBattleSlice(...a),
     ...createGovernanceSlice(...a),
+    ...createUISlice(...a),
 }));

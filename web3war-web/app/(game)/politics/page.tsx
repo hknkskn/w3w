@@ -30,15 +30,20 @@ export default function PoliticsPage() {
         createProposal
     } = useGameStore();
 
-    const countryId = user?.citizenship === 'TR' ? 1
-        : user?.citizenship === 'US' ? 2
-            : 1; // Default fallback
+    const countryId = user?.countryId || 5; // Default to TR (5) if not set
 
     const data = countryData[countryId];
     const candidates = electionCandidates[countryId] || [];
 
+    // Map numeric countryId to CountryId code for config
+    const countryCodeMap: Record<number, CountryId> = {
+        1: 'NG', 2: 'UA', 3: 'RU', 4: 'US', 5: 'TR',
+        6: 'IN', 7: 'ES', 8: 'PL', 9: 'BR', 10: 'FR'
+    };
+    const countryCode = countryCodeMap[countryId] || 'TR';
+
     // Check if user is president
-    const isPresident = user && data && data.president === user.walletAddress;
+    const isPresident = user && data && data.president === user.address;
 
     const [hasVoted, setHasVoted] = useState(false);
     const [isRegistered, setIsRegistered] = useState(false);
@@ -64,19 +69,7 @@ export default function PoliticsPage() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto space-y-8 pb-12">
-            {/* Header */}
-            <div>
-                <h1 className="text-3xl font-black text-white flex items-center gap-4">
-                    {COUNTRY_CONFIG[user?.citizenship as CountryId] ? (
-                        <img src={COUNTRY_CONFIG[user?.citizenship as CountryId].flag} className="w-12 h-7 object-cover rounded-md shadow-lg border-2 border-white/10" alt="" />
-                    ) : (
-                        <Flag className="text-cyan-400" size={32} />
-                    )}
-                    Politics of {COUNTRY_CONFIG[user?.citizenship as CountryId]?.name || 'Your Country'}
-                </h1>
-                <p className="text-slate-400 mt-2">Manage your country's leadership, taxes, and diplomatic relations.</p>
-            </div>
+        <div className="space-y-8 pb-12 mt-2">
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Column: Current Leadership & Elections */}
@@ -228,11 +221,21 @@ export default function PoliticsPage() {
                             ))}
                             {isCongressMember && (
                                 <Button
-                                    onClick={() => {
-                                        const taxType = prompt("Tax Type: 0=Income, 1=Import, 2=VAT");
-                                        const rate = prompt("New Rate (0-100):");
-                                        if (taxType !== null && rate !== null) {
-                                            createProposal(countryId, 1, [parseInt(taxType), parseInt(rate)]);
+                                    onClick={async () => {
+                                        const { idsPrompt, idsAlert } = useGameStore.getState();
+                                        const typeStr = await idsPrompt("Law Category", "Select category: 0=Income, 1=Import, 2=VAT");
+                                        if (typeStr === null) return;
+
+                                        const rateStr = await idsPrompt("New Rate", "Set rate (0-100%):");
+                                        if (rateStr === null) return;
+
+                                        const taxType = parseInt(typeStr);
+                                        const rate = parseInt(rateStr);
+
+                                        if (!isNaN(taxType) && !isNaN(rate)) {
+                                            await createProposal(countryId, 1, [taxType, rate]);
+                                        } else {
+                                            await idsAlert("Invalid input provided for proposal.", "Congress Warning", "warning");
                                         }
                                     }}
                                     className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold mb-2"

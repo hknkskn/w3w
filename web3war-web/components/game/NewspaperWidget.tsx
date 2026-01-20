@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Newspaper, ThumbsUp, MessageSquare, Eye, TrendingUp, PenTool, ChevronRight } from 'lucide-react';
 import { useGameStore } from '@/lib/store';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 
 interface Article {
     id: number;
@@ -37,14 +37,15 @@ const CATEGORY_ICONS = [
 export function NewspaperWidget() {
     const { user } = useGameStore();
     const [articles] = useState(MOCK_ARTICLES);
-    const countryInfo = user ? COUNTRY_CONFIG[user.citizenship as CountryId] : null;
+    const countryCode = (Object.keys(COUNTRY_IDS) as CountryId[]).find(k => COUNTRY_IDS[k] === user?.countryId) || 'TR' as CountryId;
+    const countryInfo = user ? COUNTRY_CONFIG[countryCode] : null;
 
     return (
         <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 overflow-hidden shadow-lg">
             {/* Header */}
             <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Newspaper size={16} className="text-amber-400" />
+                    <Newspaper size={16} className="text-cyan-400" />
                     <h3 className="font-bold text-white text-sm">Top Rated Articles</h3>
                     <span className="text-xs text-slate-400">in</span>
                     <div className="flex items-center gap-1.5">
@@ -114,9 +115,9 @@ export function NewspaperWidget() {
 
                             {/* Rank Badge */}
                             {index < 3 && (
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${index === 0 ? 'bg-amber-500 text-amber-900' :
-                                    index === 1 ? 'bg-slate-400 text-slate-900' :
-                                        'bg-orange-600 text-orange-100'
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${index === 0 ? 'bg-cyan-500 text-slate-950' :
+                                    index === 1 ? 'bg-slate-500/50 text-white' :
+                                        'bg-slate-700/50 text-slate-400'
                                     }`}>
                                     {index + 1}
                                 </div>

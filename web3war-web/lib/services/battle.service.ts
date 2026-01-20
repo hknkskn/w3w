@@ -1,5 +1,6 @@
 import { BaseService, WE3WAR_MODULES, parseMoveString, hexToUint8Array } from './base.service';
 import { BCS } from 'supra-l1-sdk';
+import { TrainingFacility, REGIMEN_CONSTANTS } from '../models/TrainingModel';
 
 export const BattleService = {
     // --- Training ---
@@ -27,6 +28,7 @@ export const BattleService = {
     },
 
     upgradeTrainingGrounds: async (regimenId: number): Promise<string> => {
+        console.log(`[DEBUG] BattleService.upgradeTrainingGrounds called with regimenId=${regimenId}`);
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.TRAINING.split('::')[0],
             WE3WAR_MODULES.TRAINING.split('::')[1],
@@ -38,7 +40,14 @@ export const BattleService = {
 
     getTrainingInfo: async (address: string) => {
         try {
-            const data = await BaseService.view(`${WE3WAR_MODULES.TRAINING}::get_training_info`, [], [address]);
+            const result = await BaseService.view(`${WE3WAR_MODULES.TRAINING}::get_training_info`, [], [address]);
+            let data = result?.result || result;
+
+            // Robust unwrapping for nested array formats
+            if (Array.isArray(data) && data.length === 1 && Array.isArray(data[0])) {
+                data = data[0];
+            }
+
             if (!data || !Array.isArray(data) || data.length < 3) return null;
 
             let qualities = data[0];
@@ -59,18 +68,95 @@ export const BattleService = {
 
     getTrainingPricing: async () => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.TRAINING}::get_pricing_info`, [], []);
-            const data = result?.result || result;
-            if (!data || !Array.isArray(data) || data.length < 2) return null;
+            const result = await BaseService.view(`${WE3WAR_MODULES.TRAINING}::get_training_pricing`, [], []);
+            let data = result?.result || result;
 
-            return {
-                upgradeCosts: data[0],
-                regimenCosts: data[1]
-            };
+            console.log(`[DEBUG] Raw Training Pricing RPC:`, JSON.stringify(data));
+
+            // Robust unwrapping for nested array formats
+            if (Array.isArray(data) && data.length === 1 && Array.isArray(data[0])) {
+                data = data[0];
+            }
+
+            // The contract might return [ [upgrade_costs], [regimen_costs] ]
+            // or if it's a single tuple/struct return, it might just be the array itself
+            if (!data || !Array.isArray(data)) return null;
+
+            if (data.length >= 2) {
+                return {
+                    upgradeCosts: data[0],
+                    regimenCosts: data[1]
+                };
+            }
+
+            // Fallback: If it returned a single array, it might be just one of them, but usually it's a tuple.
+            // Let's check if the first element is also an array (meaning it's the first vector of the tuple)
+            if (Array.isArray(data[0])) {
+                return {
+                    upgradeCosts: data[0],
+                    regimenCosts: data[1] || []
+                };
+            }
+
+            return null;
         } catch (e) {
             console.error("Failed to fetch training pricing:", e);
             return null;
         }
+    },
+
+    /**
+     * DDS Mapper: Normalizes raw on-chain training data into TrainingFacility domain models
+     */
+    mapToTrainingFacilities: (info: any, pricing: any): TrainingFacility[] => {
+        const facilities: TrainingFacility[] = [];
+
+        // info: { qualities: number[], lastTrainTime: number, totalTrains: number }
+        // pricing: { upgradeCosts: number[], regimenCosts: number[] }
+
+        // Fallback values matching contract init_module (training.move lines 65-74)
+        // SUPRA costs are in 8 decimals, CRED costs are in 2 decimals
+        const FALLBACK_UPGRADE_COSTS = [
+            2500 * 100000000,  // Q1→Q2: 2500 SUPRA
+            5000 * 100000000,  // Q2→Q3: 5000 SUPRA
+            10000 * 100000000, // Q3→Q4: 10000 SUPRA
+            20000 * 100000000  // Q4→Q5: 20000 SUPRA
+        ];
+        const FALLBACK_REGIMEN_COSTS = [19, 89, 179]; // Advanced, Elite, Special Ops in CRED (2 decimals)
+
+        const regimenCosts = pricing?.regimenCosts || FALLBACK_REGIMEN_COSTS;
+        const upgradeCosts = pricing?.upgradeCosts || FALLBACK_UPGRADE_COSTS;
+        const qualities = info?.qualities || [1, 1, 1, 1];
+
+        for (const data of REGIMEN_CONSTANTS) {
+            const id = data.id;
+            const quality = Number(qualities[id] || 1);
+
+            // Cost calculation (id 0 is free, others use pricing array)
+            const dailyCostCred = id === 0 ? 0 : (Number(regimenCosts[id - 1] || 0) / 100);
+
+            // Upgrade cost: use current quality to find next cost
+            const upgradeCostRaw = quality < 5 ? upgradeCosts[quality - 1] : null;
+            const upgradeCostSupra = upgradeCostRaw !== null && upgradeCostRaw !== undefined
+                ? (Number(upgradeCostRaw) / 100000000)
+                : null;
+
+            facilities.push({
+                id,
+                name: data.name,
+                image: data.image,
+                quality,
+                efficiency: quality * 20,
+                baseStrength: data.baseStrength,
+                currentStrengthGain: data.baseStrength * quality,
+                baseEnergy: data.baseEnergy,
+                dailyCostCred,
+                upgradeCostSupra,
+                isMaxLevel: quality >= 5
+            });
+        }
+
+        return facilities;
     },
 
     // --- Battle ---

@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 export function AdminToolkit() {
     const { user, mintCredits, addEnergy } = useGameStore();
     const [isLoading, setIsLoading] = useState(false);
-    const [targetAddr, setTargetAddr] = useState(user?.walletAddress || '');
+    const [targetAddr, setTargetAddr] = useState(user?.address || '');
     const [selectedQuality, setSelectedQuality] = useState(1);
     const [selectedQuantity, setSelectedQuantity] = useState(10);
 
@@ -59,8 +59,10 @@ export function AdminToolkit() {
     const handleMint = async (amount: number) => {
         setIsLoading(true);
         try {
-            // Convert display amount to on-chain amount (e.g., 50000 CR = 5000000 units)
-            await mintCredits(targetAddr, amount * CRED_DECIMALS);
+            // CRED has 2 decimals on-chain. 
+            // Note: userSlice.mintCredits also multiplies by 100, so we pass the "display" amount here.
+            // Actually, safest is to pass the integer amount we want to mint.
+            await mintCredits(targetAddr, amount);
         } finally {
             setIsLoading(false);
         }

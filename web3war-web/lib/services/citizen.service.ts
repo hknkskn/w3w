@@ -1,6 +1,19 @@
 import { BaseService, RPC_URL, WE3WAR_MODULES, parseMoveString } from './base.service';
 import { BCS } from 'supra-l1-sdk';
 
+/**
+ * Normalizes an address to a 32-byte Uint8Array for BCS serialization.
+ */
+const normalizeAddressToBytes = (addr: string): number[] => {
+    const clean = addr.toLowerCase().replace('0x', '');
+    const bytes = new Uint8Array(32);
+    const hexBytes = Buffer.from(clean.padStart(64, '0'), 'hex');
+    bytes.set(hexBytes.slice(-32)); // Ensure we take the last 32 bytes if padded
+    return Array.from(bytes);
+};
+import { CitizenProfile } from '../models/CitizenModel';
+import { InventoryItem, getItemDisplayInfo } from '../models/InventoryModel';
+
 export const CitizenService = {
     /**
      * Check if user is admin
@@ -106,6 +119,51 @@ export const CitizenService = {
     },
 
     /**
+     * DDS Mapper: Normalizes raw profile data into a CitizenProfile domain model
+     */
+    mapToCitizenProfile: (address: string, data: any, supraBalance: number, credBalance: number, isAdmin: boolean): CitizenProfile => {
+        return {
+            address,
+            username: data?.username || 'Pilot',
+            level: Number(data?.level || 0),
+            xp: Number(data?.xp || 0),
+            nextLevelXp: Number(data?.nextLevelXp || 100),
+            strength: Number(data?.strength || 10),
+            energy: Number(data?.energy || 0),
+            maxEnergy: 200, // Standard max energy
+            credits: credBalance, // Use explicit coin balance
+            supraBalance: supraBalance,
+            isAdmin: isAdmin,
+            countryId: Number(data?.countryId || 0),
+            rankPoints: Number(data?.rankPoints || 0),
+            employerId: data?.employerId && Number(data.employerId) !== 0 ? Number(data.employerId) : undefined
+        };
+    },
+
+    /**
+     * DDS Mapper: Normalizes raw inventory vectors into InventoryItem domain models
+     */
+    mapToInventoryItems: (rawItems: any[]): InventoryItem[] => {
+        if (!rawItems || !Array.isArray(rawItems)) return [];
+
+        return rawItems.map(raw => {
+            const itemId = Number(raw.id);
+            const display = getItemDisplayInfo(itemId);
+            return {
+                id: itemId,
+                category: Number(raw.category),
+                quality: Number(raw.quality),
+                quantity: Number(raw.quantity),
+                name: display.name,
+                image: display.image,
+                description: display.description,
+                // Energy restore for Food (ID 201)
+                ...(itemId === 201 ? { energyRestore: Number(raw.quality) * 20 } : {})
+            };
+        });
+    },
+
+    /**
      * Get User Inventory
      */
     getInventory: async (address: string) => {
@@ -164,9 +222,6 @@ export const CitizenService = {
         }
     },
 
-    /**
-     * Get CRED Balance
-     */
     /**
      * Get CRED Balance
      */
@@ -236,7 +291,7 @@ export const CitizenService = {
             "mint_credits",
             [],
             [
-                Array.from(new Uint8Array(Buffer.from(target.replace('0x', ''), 'hex'))),
+                normalizeAddressToBytes(target),
                 Array.from(BCS.bcsSerializeUint64(BigInt(amount)))
             ]
         );
@@ -249,7 +304,7 @@ export const CitizenService = {
             "add_energy",
             [],
             [
-                Array.from(new Uint8Array(Buffer.from(target.replace('0x', ''), 'hex'))),
+                normalizeAddressToBytes(target),
                 Array.from(BCS.bcsSerializeUint64(BigInt(amount)))
             ]
         );

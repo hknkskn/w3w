@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useGameStore } from '@/lib/store';
 import { Shield, MapPin, Wallet, Trophy, Coins, LogOut, Users, Newspaper, Home, Flag } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 import Link from 'next/link';
 
 export default function ProfilePage() {
@@ -17,7 +17,8 @@ export default function ProfilePage() {
         return null;
     }
 
-    const countryConfig = COUNTRY_CONFIG[user.citizenship as CountryId];
+    const countryCode = (Object.entries(COUNTRY_IDS).find(([_, v]) => v === user.countryId)?.[0] || 'TR') as CountryId;
+    const countryConfig = COUNTRY_CONFIG[countryCode];
 
     const handleDisconnect = () => {
         window.location.reload();
@@ -52,7 +53,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex items-center gap-2 text-sm">
                                 {countryConfig && <img src={countryConfig.flag} className="w-5 h-3 rounded" alt="" />}
-                                <span className="text-white font-medium">{user.location.name}</span>
+                                <span className="text-white font-medium">{countryConfig?.name || 'Unknown Sector'}</span>
                             </div>
 
                             <div className="border-t border-slate-700/50 pt-3">
@@ -65,7 +66,7 @@ export default function ProfilePage() {
                                 </div>
                                 <div className="flex items-center gap-2 text-sm mt-1">
                                     {countryConfig && <img src={countryConfig.flag} className="w-5 h-3 rounded" alt="" />}
-                                    <span className="text-cyan-400 font-bold">{countryConfig?.name || user.citizenship}</span>
+                                    <span className="text-cyan-400 font-bold">{countryConfig?.name || countryCode}</span>
                                 </div>
                             </div>
 
@@ -73,7 +74,7 @@ export default function ProfilePage() {
                                 <div className="font-medium text-slate-300">Young Citizen</div>
                                 <div>Joined: {new Date().toLocaleDateString()}</div>
                                 <div className="mt-1">
-                                    National rank: <span className="text-cyan-400 font-bold">#{user.id.slice(5, 9)}</span>
+                                    National rank: <span className="text-cyan-400 font-bold">#{user.address.slice(2, 6).toUpperCase()}</span>
                                 </div>
                             </div>
                         </div>
@@ -163,7 +164,7 @@ export default function ProfilePage() {
                                 <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-700/50 rounded-lg text-xs">
                                     <Wallet size={14} className="text-slate-400" />
                                     <span className="font-mono text-slate-300">
-                                        {user.walletAddress?.slice(0, 6)}...{user.walletAddress?.slice(-4)}
+                                        {user.address.slice(0, 6)}...{user.address.slice(-4)}
                                     </span>
                                 </div>
                                 <button
@@ -207,7 +208,7 @@ export default function ProfilePage() {
                             <div className="text-center">
                                 <div className="text-3xl mb-2">💪</div>
                                 <div className="text-xs text-slate-500 uppercase">Strength</div>
-                                <div className="text-lg font-black text-amber-400">{user.strength.toFixed(2)}</div>
+                                <div className="text-lg font-black text-amber-400">{(user.strength || 0).toFixed(2)}</div>
                             </div>
 
                             {/* Military Rank */}
@@ -234,7 +235,7 @@ export default function ProfilePage() {
                                     <Coins size={16} className="text-amber-500" />
                                     <span className="text-xs text-slate-500 uppercase">Credits</span>
                                 </div>
-                                <div className="text-xl font-black text-amber-400">{user.credits.toFixed(2)} CRED</div>
+                                <div className="text-xl font-black text-amber-400">{(user.credits || 0).toFixed(2)} CRED</div>
                             </div>
                             <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-700/30">
                                 <div className="flex items-center gap-2 mb-1">

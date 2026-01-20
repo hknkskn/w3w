@@ -416,8 +416,10 @@ export default function LoginScreen() {
                                         Check Status
                                     </button>
                                     <button
-                                        onClick={() => {
-                                            if (confirm("If you're already registered, you can proceed. If not, game features may fail. Proceed?")) {
+                                        onClick={async () => {
+                                            const { idsConfirm } = useGameStore.getState();
+                                            const confirmed = await idsConfirm("If you're already registered, you can proceed. If not, game features may fail. Proceed?", "Tactical Warning");
+                                            if (confirmed) {
                                                 login(username || "Soldier", selectedCountry, walletAddress!);
                                             }
                                         }}

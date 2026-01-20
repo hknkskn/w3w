@@ -1,5 +1,7 @@
 import { BaseService, WE3WAR_MODULES } from './base.service';
 import { BCS } from 'supra-l1-sdk';
+import { MarketListing } from '../models/MarketModel';
+import { getItemDisplayInfo } from '../models/InventoryModel';
 
 export const MarketService = {
     /**
@@ -106,6 +108,43 @@ export const MarketService = {
             console.error("Failed to fetch market listings:", e);
             return [];
         }
+    },
+
+    /**
+     * DDS Mapper: Normalizes raw market data into MarketListing domain models
+     */
+    mapToMarketListings: (rawListings: any[]): MarketListing[] => {
+        if (!rawListings || !Array.isArray(rawListings)) return [];
+
+        return rawListings.map(raw => {
+            const itemId = Number(raw.item_type?.id || raw.original_item_id || 0);
+            const category = Number(raw.item_type?.category || 0);
+            const quality = Number(raw.item_type?.quality || 1);
+            const display = getItemDisplayInfo(itemId);
+
+            const quantity = Number(raw.quantity || 0);
+            const priceRaw = Number(raw.price_per_unit || 0);
+            const pricePerUnit = priceRaw / 100; // CRED has 2 decimals
+
+            return {
+                id: Number(raw.id),
+                listingId: Number(raw.id),
+                seller: raw.seller,
+                item: {
+                    id: itemId,
+                    category,
+                    quality,
+                    quantity,
+                    name: display.name,
+                    image: display.image,
+                    description: display.description
+                },
+                pricePerUnit,
+                totalPrice: pricePerUnit * quantity,
+                countryId: Number(raw.country || 0),
+                createdAt: Number(raw.created_at || 0)
+            };
+        });
     },
 
     getMyListings: async (address: string) => {

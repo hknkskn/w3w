@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
 import { Package, Zap, Swords, Info, Coins, ChevronRight, Filter, Search } from 'lucide-react';
-import { Button } from '@/components/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function InventoryWidget() {
@@ -12,19 +11,22 @@ export function InventoryWidget() {
     const router = useRouter();
     const [filter, setFilter] = useState<'all' | 'food' | 'weapon' | 'material' | 'ticket'>('all');
     const [searchQuery, setSearchQuery] = useState('');
-    const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+    const [hoveredUID, setHoveredUID] = useState<string | null>(null);
 
     const filteredInventory = (inventory || []).filter(item => {
-        const matchesFilter = filter === 'all' || item.type === filter;
+        // Map category ID to type for filtering (Alinged with ITEMS_CATALOG.md)
+        // 1: Food, 2: Weapon, 3: Material, 4: Specialized/Ticket
+        const type = item.category === 1 ? 'food' : item.category === 2 ? 'weapon' : item.category === 4 ? 'ticket' : 'material';
+        const matchesFilter = filter === 'all' || type === filter;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesFilter && matchesSearch;
     });
 
     const categories = [
-        { id: 'all', label: 'All', icon: <Package size={14} /> },
-        { id: 'food', label: 'Food', icon: <Zap size={14} /> },
-        { id: 'weapon', label: 'Armory', icon: <Swords size={14} /> },
-        { id: 'material', label: 'Goods', icon: <Package size={14} /> },
+        { id: 'all', label: 'All', icon: <img src="/icons/inventory.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'food', label: 'Food', icon: <img src="/icons/food.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'weapon', label: 'Armory', icon: <img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'material', label: 'Goods', icon: <img src="/icons/warehouse.webp" className="w-4 h-4 object-contain" alt="" /> },
     ];
 
     return (
@@ -46,13 +48,13 @@ export function InventoryWidget() {
             {/* Controls Bar */}
             <div className="px-4 py-3 space-y-3 bg-slate-900/20 border-b border-white/5">
                 <div className="relative group">
-                    <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors" />
+                    <Search size={10} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
                     <input
                         type="text"
-                        placeholder="SEARCH INVENTORY..."
+                        placeholder="FILTER ASSETS..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-slate-950/50 border border-white/5 rounded-xl text-[10px] font-bold text-slate-300 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/30 transition-all uppercase tracking-wider"
+                        className="w-full pl-8 pr-3 py-1.5 bg-slate-950/50 border border-slate-800 rounded-lg text-[9px] font-bold text-slate-400 placeholder:text-slate-700 focus:outline-none focus:border-cyan-500/20 transition-all uppercase tracking-wider"
                     />
                 </div>
 
@@ -86,66 +88,73 @@ export function InventoryWidget() {
                                 <p className="text-[10px] font-black uppercase tracking-widest">Vault Empty</p>
                             </motion.div>
                         ) : (
-                            filteredInventory.map((item) => (
-                                <motion.div
-                                    layout
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    key={item.id}
-                                    onMouseEnter={() => setHoveredItem(item.id)}
-                                    onMouseLeave={() => setHoveredItem(null)}
-                                    className={`relative aspect-square rounded-xl border-2 flex items-center justify-center transition-all cursor-crosshair group overflow-hidden ${(item.quality || 1) >= 5 ? 'border-amber-500/20 bg-amber-500/5 hover:border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
+                            filteredInventory.map((item) => {
+                                const uId = `${item.id}-${item.category}-${item.quality}`;
+                                return (
+                                    <motion.div
+                                        layout
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        key={uId}
+                                        onMouseEnter={() => setHoveredUID(uId)}
+                                        onMouseLeave={() => setHoveredUID(null)}
+                                        className={`relative aspect-square rounded-xl border-2 flex items-center justify-center transition-all cursor-crosshair group overflow-hidden ${(item.quality || 1) >= 5 ? 'border-amber-500/20 bg-amber-500/5 hover:border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.05)]' :
                                             (item.quality || 1) >= 3 ? 'border-cyan-500/20 bg-cyan-500/5 hover:border-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.05)]' :
                                                 'border-white/5 bg-slate-900/50 hover:bg-slate-800'
-                                        }`}
-                                >
-                                    {/* Icon */}
-                                    <div className="text-3xl filter drop-shadow-lg group-hover:scale-110 transition-transform duration-300">
-                                        {item.image}
-                                    </div>
+                                            }`}
+                                    >
+                                        {/* Icon */}
+                                        <div className="w-12 h-12 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                                            {item.image.startsWith('/') ? (
+                                                <img src={item.image} className="w-10 h-10 object-contain filter drop-shadow-lg" alt="" />
+                                            ) : (
+                                                <div className="text-3xl filter drop-shadow-lg">{item.image}</div>
+                                            )}
+                                        </div>
 
-                                    {/* Small Quantity Badge */}
-                                    <div className="absolute bottom-1 right-1.5 px-1 bg-slate-950/80 rounded-sm text-[9px] font-black font-mono text-white/80 border border-white/5">
-                                        {item.quantity}
-                                    </div>
+                                        {/* Small Quantity Badge */}
+                                        <div className="absolute bottom-1 right-1.5 px-1 bg-slate-950/80 rounded-sm text-[9px] font-black font-mono text-white/80 border border-white/5">
+                                            {item.quantity}
+                                        </div>
 
-                                    {/* Quality Indicator Dot */}
-                                    <div className={`absolute top-1 right-1.5 w-1 h-1 rounded-full ${(item.quality || 1) >= 5 ? 'bg-amber-400' :
+                                        {/* Quality Indicator Dot */}
+                                        <div className={`absolute top-1 right-1.5 w-1 h-1 rounded-full ${(item.quality || 1) >= 5 ? 'bg-amber-400' :
                                             (item.quality || 1) >= 3 ? 'bg-cyan-400' :
                                                 'bg-slate-600'
-                                        }`}></div>
+                                            }`}></div>
 
-                                    {/* Compact Hover Details Overlay */}
-                                    <AnimatePresence>
-                                        {hoveredItem === item.id && (
-                                            <motion.div
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                exit={{ opacity: 0 }}
-                                                className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-2 z-50 overflow-hidden"
-                                            >
-                                                <div className="text-[7px] font-black text-cyan-400 uppercase tracking-tighter text-center line-clamp-1 mb-1">{item.name}</div>
-                                                <div className="flex flex-col gap-1 w-full">
-                                                    {item.type === 'food' && (
+                                        {/* Compact Hover Details Overlay */}
+                                        <AnimatePresence>
+                                            {hoveredUID === uId && (
+                                                <motion.div
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-2 z-50 overflow-hidden"
+                                                >
+                                                    <div className="text-[7px] font-black text-cyan-400 uppercase tracking-tighter text-center line-clamp-1 mb-1">{item.name}</div>
+                                                    <div className="flex flex-col gap-1 w-full">
+                                                        {item.category === 1 && (
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); useItem(String(item.id)); }}
+                                                                className="w-full py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-emerald-500/30"
+                                                            >
+                                                                USE
+                                                            </button>
+                                                        )}
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); useItem(item.id); }}
-                                                            className="w-full py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-emerald-500/30"
+                                                            onClick={(e) => { e.stopPropagation(); router.push(`/market?view=sell&item=${item.id}`); }}
+                                                            className="w-full py-1 bg-white/5 hover:bg-cyan-500 text-slate-300 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-white/10"
                                                         >
-                                                            USE
+                                                            OFFER
                                                         </button>
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); router.push(`/market?view=sell&item=${item.id}`); }}
-                                                        className="w-full py-1 bg-white/5 hover:bg-cyan-500 text-slate-300 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-white/10"
-                                                    >
-                                                        OFFER
-                                                    </button>
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                </motion.div>
-                            ))
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </motion.div>
+                                );
+                            })
                         )}
                     </AnimatePresence>
                 </div>

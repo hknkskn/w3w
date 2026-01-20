@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
-import { Battle, CountryId, RoundHistory } from '../types';
+import { Battle, CountryId, RoundHistory, COUNTRY_IDS } from '../types';
 
 export interface BattleSlice {
     activeBattles: Battle[];
@@ -23,41 +23,36 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
     declareWar: async (regionId, isTraining) => {
         try {
             const { ContractService } = await import('../contract-service');
-            const state = get();
-            if (!state.user) return;
+            const user = get().user;
+            if (!user) return;
 
-            // Map citizenship to country code (needs mapping or direct number)
-            const countryCode = state.user.citizenship === 'NG' ? 1 :
-                state.user.citizenship === 'UA' ? 2 :
-                    state.user.citizenship === 'RU' ? 3 :
-                        state.user.citizenship === 'US' ? 4 :
-                            state.user.citizenship === 'TR' ? 5 :
-                                state.user.citizenship === 'IN' ? 6 :
-                                    state.user.citizenship === 'ES' ? 7 :
-                                        state.user.citizenship === 'PL' ? 8 :
-                                            state.user.citizenship === 'BR' ? 9 :
-                                                state.user.citizenship === 'FR' ? 10 : 0;
+            const countryCode = user.countryId || 1;
+            // Get the string code for the UI/State consistency
+            const countryString = Object.keys(COUNTRY_IDS).find(key => COUNTRY_IDS[key as CountryId] === countryCode) as CountryId;
 
             const tx = await ContractService.declareWar(regionId, countryCode, isTraining);
             if (tx) {
-                alert(`${isTraining ? 'Training' : 'War'} declaration sent! Waiting for confirmation...`);
+                await get().idsAlert(`${isTraining ? 'Training' : 'War'} declaration sent! Waiting for confirmation...`, "Ministry of Defense", "success");
                 setTimeout(() => get().fetchBattles(), 4000);
             }
         } catch (e) {
             console.error("Declare war error:", e);
-            alert("Failed to declare war.");
+            await get().idsAlert("Failed to declare war.", "Military Intelligence", "error");
         }
     },
 
-    startResistanceWar: (regionId) => {
+    startResistanceWar: async (regionId) => {
         const state = get();
         if (!state.user) return;
+
+        const countryCode = state.user.countryId || 1;
+        const countryString = Object.keys(COUNTRY_IDS).find(key => COUNTRY_IDS[key as CountryId] === countryCode) as CountryId;
 
         const newBattle: Battle = {
             id: `res_${Date.now()}`,
             region: `Region ${regionId}`,
             regionId,
-            attacker: state.user.citizenship,
+            attacker: countryString || '??',
             defender: 'Occupier',
             startTime: Date.now(),
             endTime: Date.now() + 1000 * 60 * 60 * 4,
@@ -68,27 +63,30 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
         };
 
         set({ activeBattles: [...state.activeBattles, newBattle] });
-        alert(`Resistance War started to liberate Region ${regionId}!`);
+        await get().idsAlert(`Resistance War started to liberate Region ${regionId}!`, "Resistance Movement", "warning");
     },
 
-    signMPP: (targetCountry) => {
+    signMPP: async (targetCountry) => {
         const state = get();
         if (!state.user) return;
 
         if (state.user.credits < 50) {
-            alert("Not enough CRED to sign MPP!");
+            await get().idsAlert("Not enough CRED to sign MPP!", "Diplomatic Funds", "error");
             return;
         }
+
+        const countryCode = state.user.countryId || 1;
+        const countryString = Object.keys(COUNTRY_IDS).find(key => COUNTRY_IDS[key as CountryId] === countryCode) as CountryId;
 
         set({
             user: { ...state.user, credits: state.user.credits - 50 },
             alliances: [...state.alliances, {
-                a: state.user.citizenship,
+                a: countryString || 'NG',
                 b: targetCountry,
                 expires: Date.now() + 1000 * 60 * 60 * 24 * 30
             }]
         });
-        alert(`Signed Mutual Protection Pact with ${targetCountry}!`);
+        await get().idsAlert(`Signed Mutual Protection Pact with ${targetCountry}!`, "Diplomatic Success", "success");
     },
 
     fetchBattles: async () => {
@@ -173,7 +171,7 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
             const tx = await ContractService.endRound(numericId);
             if (tx) {
-                alert("Round ended! Refreshing...");
+                await get().idsAlert("Round ended! Refreshing...", "Combat Log", "info");
                 setTimeout(() => {
                     get().fetchBattles();
                     get().fetchRoundHistory(battleId);

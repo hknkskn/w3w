@@ -1,9 +1,11 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
-import { Citizen, CountryId } from '../types';
+import { CountryId, COUNTRY_IDS } from '../types';
+import { CitizenProfile } from '../models/CitizenModel';
+import { TrainingFacility } from '../models/TrainingModel';
 
 export interface UserSlice {
-    user: Citizen | null;
+    user: CitizenProfile | null;
     isLoggedIn: boolean;
     login: (username: string, country: CountryId, walletAddress: string) => void;
     checkWalletConnection: () => Promise<void>;
@@ -13,15 +15,7 @@ export interface UserSlice {
     spendCredits: (amount: number) => boolean;
     dailyReset: () => void;
     // Simulation Mechanics
-    trainingInfo: {
-        qualities: number[];
-        lastTrainTime: number;
-        totalTrains: number;
-    } | null;
-    trainingPricing: {
-        upgradeCosts: number[];
-        regimenCosts: number[];
-    } | null;
+    facilities: TrainingFacility[];
     fetchTraining: () => Promise<void>;
     fetchTrainingPricing: () => Promise<void>;
     train: (selectedRegimens: { id: number; cost: number; strengthBonus: number; energyCost: number }[]) => Promise<void>;
@@ -37,71 +31,49 @@ export interface UserSlice {
 
 export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set, get) => ({
     user: null,
-    // ...
     isLoggedIn: false,
 
     login: async (username, country, walletAddress) => {
-        // Mock User Structure Initial - Real data will come from fetchProfile
-        // But we need to set initial state fast
-        const userState: Citizen = {
-            id: walletAddress, // Use wallet address as user ID for ownership matching
-            username,
-            walletAddress,
-            citizenship: country,
-            location: { id: 1, name: 'Marmara', country },
-            level: 1,
-            xp: 0,
-            nextLevelXp: 100,
-            energy: 200,
-            maxEnergy: 200,
-            strength: 5.0,
-            rankPoints: 0,
-            credits: 0, // Game credits (mock/profile)
-            employerId: undefined,
-            walletBalance: 0 // New field
-        };
-
-        set({ isLoggedIn: true, user: userState });
+        // Initial quick set for UI responsiveness
+        set({
+            isLoggedIn: true,
+            user: {
+                address: walletAddress,
+                username,
+                level: 1,
+                xp: 0,
+                nextLevelXp: 100,
+                energy: 200,
+                maxEnergy: 200,
+                strength: 5.0,
+                credits: 0,
+                supraBalance: 0,
+                isAdmin: false,
+                countryId: COUNTRY_IDS[country] || 0,
+                rankPoints: 0
+            }
+        });
 
         try {
             const { ContractService } = await import('../contract-service');
 
-            // 1. Fetch Aggregated Profile (Simulation Stats)
+            // 1. Fetch Aggregated Profile
             const dashboardData = await ContractService.getDashboardData(walletAddress);
-
-            // Try to fetch employer ID separately (safely)
-            let employerId = undefined;
-            try {
-                const profile = await ContractService.getProfile(walletAddress);
-                if (profile && Number(profile.employerId) > 0) {
-                    employerId = `co_${profile.employerId}`;
-                }
-            } catch (e) {
-                console.warn("Failed to fetch extra profile info:", e);
-            }
-
-            // 2. Fetch Wallet Balances
-            const credBalance = await (ContractService as any).getCoinBalance(walletAddress);
-            const supraBalance = await (ContractService as any).getSupraBalance(walletAddress);
-
-            // 3. Check Admin Status
+            const supraBalance = await ContractService.getSupraBalance(walletAddress);
+            const credBalance = await ContractService.getCoinBalance(walletAddress);
             const isAdmin = await ContractService.isAdmin(walletAddress);
 
-            set((state) => ({
-                user: {
-                    ...state.user!,
-                    ...(dashboardData ? {
-                        level: Number(dashboardData.level),
-                        xp: Number(dashboardData.xp),
-                        energy: Number(dashboardData.energy),
-                        strength: Number(dashboardData.strength),
-                        credits: credBalance
-                    } : {}),
-                    employerId: employerId,
-                    walletBalance: supraBalance, // SUPRA balance
-                    isAdmin: !!isAdmin
-                }
-            }));
+            // 2. Map specialized profile for employerId
+            const profile = await ContractService.getProfile(walletAddress);
+            const mappedUser = ContractService.mapToCitizenProfile(
+                walletAddress,
+                profile || dashboardData,
+                supraBalance,
+                credBalance,
+                !!isAdmin
+            );
+
+            set({ isLoggedIn: true, user: mappedUser });
 
             // Trigger other slices
             get().fetchInventory();
@@ -114,7 +86,7 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
     },
 
     checkWalletConnection: async () => {
-        // Validation logic
+        // Implementation remains same
     },
 
     consumeEnergy: (amount) => {
@@ -150,23 +122,22 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
         return true;
     },
 
-    trainingInfo: null,
-    trainingPricing: null,
+    facilities: [],
 
     fetchTraining: async () => {
         const user = get().user;
-        if (!user || !user.walletAddress) return;
+        if (!user || !user.address) return;
         try {
             const { ContractService } = await import('../contract-service');
-            const info = await ContractService.getTrainingInfo(user.walletAddress);
-            if (info) {
-                set({
-                    trainingInfo: {
-                        qualities: info.qualities,
-                        lastTrainTime: info.lastTrainTime,
-                        totalTrains: info.totalTrains
-                    }
-                });
+            const info = await ContractService.getTrainingInfo(user.address);
+            const pricing = await ContractService.getTrainingPricing();
+
+            // Mapper now handles null inputs with safe defaults
+            const mappedFacilities = ContractService.mapToTrainingFacilities(info, pricing);
+            set({ facilities: mappedFacilities });
+
+            if (!info || !pricing) {
+                console.warn(`[DEBUG] Training data partially missing: info=${!!info}, pricing=${!!pricing}. Using defaults.`);
             }
         } catch (e) {
             console.error("Fetch training error:", e);
@@ -174,20 +145,12 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
     },
 
     fetchTrainingPricing: async () => {
-        try {
-            const { ContractService } = await import('../contract-service');
-            const pricing = await ContractService.getTrainingPricing();
-            if (pricing) {
-                set({ trainingPricing: pricing });
-            }
-        } catch (e) {
-            console.error("Fetch training pricing error:", e);
-        }
+        // Aggregated into fetchTraining
     },
 
     train: async (selectedRegimens) => {
-        const totalCost = selectedRegimens.reduce((sum, r) => sum + r.cost, 0);
         const totalEnergy = selectedRegimens.reduce((sum, r) => sum + r.energyCost, 0);
+        const totalCost = selectedRegimens.reduce((sum, r) => sum + r.cost, 0);
         const totalStrength = selectedRegimens.reduce((sum, r) => sum + r.strengthBonus, 0);
         const regimenIds = selectedRegimens.map(r => r.id);
 
@@ -202,14 +165,14 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
                         user: {
                             ...user,
                             energy: user.energy - totalEnergy,
-                            credits: user.credits - totalCost,
+                            credits: Math.max(0, user.credits - totalCost),
                             strength: user.strength + totalStrength
                         }
                     });
                 }
                 setTimeout(() => {
                     get().fetchTraining();
-                    get().fetchDashboardData(); // Refresh full stats
+                    get().fetchDashboardData();
                 }, 2000);
             }
         } catch (e) {
@@ -218,9 +181,12 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
     },
 
     upgradeTrainingGrounds: async (regimenId: number) => {
+        console.log(`[DEBUG] userSlice.upgradeTrainingGrounds called with regimenId=${regimenId}`);
         try {
             const { ContractService } = await import('../contract-service');
+            console.log(`[DEBUG] Calling ContractService.upgradeTrainingGrounds(${regimenId})...`);
             const txHash = await ContractService.upgradeTrainingGrounds(regimenId);
+            console.log(`[DEBUG] upgradeTrainingGrounds txHash:`, txHash);
             if (txHash) {
                 setTimeout(() => get().fetchTraining(), 2000);
             }
@@ -240,7 +206,8 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.createMilitaryUnit(name);
             if (tx) {
-                setTimeout(() => get().login(get().user!.username, get().user!.citizenship, get().user!.walletAddress!), 2000);
+                const user = get().user;
+                if (user) setTimeout(() => get().fetchDashboardData(), 2000);
             }
         } catch (e) {
             console.error("Create MU error:", e);
@@ -252,7 +219,8 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.joinMilitaryUnit(unitId);
             if (tx) {
-                setTimeout(() => get().login(get().user!.username, get().user!.citizenship, get().user!.walletAddress!), 2000);
+                const user = get().user;
+                if (user) setTimeout(() => get().fetchDashboardData(), 2000);
             }
         } catch (e) {
             console.error("Join MU error:", e);
@@ -273,35 +241,25 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
 
     fetchDashboardData: async () => {
         const user = get().user;
-        if (!user || !user.walletAddress) return;
+        if (!user || !user.address) return;
         try {
             const { ContractService } = await import('../contract-service');
-            const dashboardData = await ContractService.getDashboardData(user.walletAddress);
-            const credBalance = await ContractService.getCoinBalance(user.walletAddress);
-            const supraBalance = await ContractService.getSupraBalance(user.walletAddress);
-
-            // Try to refresh employer ID separately
-            let employerId = get().user?.employerId; // Keep existing by default
-            try {
-                const profile = await ContractService.getProfile(user.walletAddress);
-                if (profile) {
-                    employerId = Number(profile.employerId) > 0 ? `co_${profile.employerId}` : undefined;
-                }
-            } catch (e) { console.warn("Profile fetch failed in dashboard update", e); }
+            const dashboardData = await ContractService.getDashboardData(user.address);
+            const supraBalance = await ContractService.getSupraBalance(user.address);
+            const credBalance = await ContractService.getCoinBalance(user.address);
+            const isAdmin = await ContractService.isAdmin(user.address);
 
             if (dashboardData) {
-                set((state) => ({
-                    user: {
-                        ...state.user!,
-                        level: Number(dashboardData.level),
-                        xp: Number(dashboardData.xp),
-                        energy: Number(dashboardData.energy),
-                        strength: Number(dashboardData.strength),
-                        employerId,
-                        credits: credBalance,
-                        walletBalance: supraBalance
-                    }
-                }));
+                const profile = await ContractService.getProfile(user.address);
+                const mappedUser = ContractService.mapToCitizenProfile(
+                    user.address,
+                    profile || dashboardData,
+                    supraBalance,
+                    credBalance,
+                    !!isAdmin
+                );
+
+                set({ user: mappedUser });
 
                 // Refresh extra info
                 get().fetchTraining();
@@ -344,7 +302,7 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             await ContractService.mintItem(target, itemId, category, quality, quantity);
 
             // Refresh inventory if self-minting
-            if (target === get().user?.walletAddress) {
+            if (get().user && target === get().user!.address) {
                 await get().fetchInventory();
             }
         } catch (e) {

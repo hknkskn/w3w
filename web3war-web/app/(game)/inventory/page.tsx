@@ -15,15 +15,17 @@ export default function InventoryPage() {
     }, []);
 
     const categories = [
-        { id: 'all', name: 'All Assets', icon: <Package size={16} /> },
-        { id: 'weapon', name: 'Armory', icon: <Swords size={16} /> },
-        { id: 'food', name: 'Consumables', icon: <Zap size={16} /> },
-        { id: 'material', name: 'Raw Goods', icon: <Filter size={16} /> },
-        { id: 'ticket', name: 'Access Keys', icon: <Info size={16} /> },
+        { id: 'all', name: 'All Assets', icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'weapon', name: 'Armory', icon: <img src="/icons/weapon.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'food', name: 'Consumables', icon: <img src="/icons/food.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'material', name: 'Raw Goods', icon: <img src="/icons/warehouse.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'ticket', name: 'Access Keys', icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
     ];
 
     const filteredInventory = (inventory || []).filter(item => {
-        const matchesFilter = selectedCategory === 'all' || item.type === selectedCategory;
+        // Map category ID to type for filtering (Aligned with ITEMS_CATALOG.md)
+        const type = item.category === 1 ? 'food' : item.category === 2 ? 'weapon' : item.category === 4 ? 'ticket' : 'material';
+        const matchesFilter = selectedCategory === 'all' || type === selectedCategory;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesFilter && matchesSearch;
     });
@@ -31,28 +33,7 @@ export default function InventoryPage() {
     if (!user) return null;
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Header */}
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-black text-white tracking-tight uppercase">National <span className="text-cyan-500">Vault</span></h1>
-                    <p className="text-slate-400 mt-1">Manage your registered assets and equipment.</p>
-                </div>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => fetchInventory()}
-                        className="h-10 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg flex items-center gap-2 text-xs font-bold transition-all border border-slate-700"
-                    >
-                        <RefreshCw size={14} /> Sync
-                    </button>
-                    <button
-                        onClick={() => initInventory()}
-                        className="h-10 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg flex items-center gap-2 text-xs font-bold transition-all border border-slate-700"
-                    >
-                        <PlusCircle size={14} /> Fix Vault
-                    </button>
-                </div>
-            </div>
+        <div className="space-y-6 animate-in fade-in duration-500 mt-2">
 
             {/* Search Bar */}
             <div className="relative">
@@ -110,56 +91,65 @@ export default function InventoryPage() {
                                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Vault Sector Empty</p>
                                 </div>
                             ) : (
-                                filteredInventory.map((item) => (
-                                    <motion.div
-                                        key={item.id}
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-colors group"
-                                    >
-                                        <div className="col-span-6 flex items-center gap-4">
-                                            <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center text-2xl group-hover:scale-105 transition-transform border border-white/5">
-                                                {item.image}
-                                            </div>
-                                            <div>
-                                                <div className="font-bold text-white group-hover:text-cyan-400 transition-colors uppercase tracking-tight">
-                                                    {item.name}
-                                                </div>
-                                                <div className="text-[9px] text-slate-500 font-black uppercase tracking-tighter mt-0.5">
-                                                    ID: #{item.id} • Registered Asset
-                                                </div>
-                                            </div>
-                                        </div>
+                                filteredInventory.map((item) => {
+                                    const uId = `${item.id}-${item.category}-${item.quality}`;
+                                    const type = item.category === 1 ? 'food' : item.category === 2 ? 'weapon' : item.category === 4 ? 'ticket' : 'material';
 
-                                        <div className="col-span-2">
-                                            <div className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black border ${item.quality >= 5 ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
+                                    return (
+                                        <motion.div
+                                            key={uId}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-colors group"
+                                        >
+                                            <div className="col-span-6 flex items-center gap-4">
+                                                <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform border border-white/5 overflow-hidden p-2">
+                                                    {item.image.startsWith('/') ? (
+                                                        <img src={item.image} className="w-full h-full object-contain filter drop-shadow-lg" alt="" />
+                                                    ) : (
+                                                        <span className="text-2xl filter drop-shadow-lg">{item.image}</span>
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-white group-hover:text-cyan-400 transition-colors uppercase tracking-tight">
+                                                        {item.name}
+                                                    </div>
+                                                    <div className="text-[9px] text-slate-500 font-black uppercase tracking-tighter mt-0.5">
+                                                        ID: #{item.id} • Registered Asset
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <div className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black border ${item.quality >= 5 ? 'bg-amber-500/10 border-amber-500/20 text-amber-500' :
                                                     item.quality >= 3 ? 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400' :
                                                         'bg-slate-900 border-white/5 text-slate-500'
-                                                }`}>
-                                                Q{item.quality}
+                                                    }`}>
+                                                    Q{item.quality}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div className="col-span-2 text-white font-mono font-bold">
-                                            {item.quantity.toLocaleString()}
-                                        </div>
+                                            <div className="col-span-2 text-white font-mono font-bold">
+                                                {item.quantity.toLocaleString()}
+                                            </div>
 
-                                        <div className="col-span-2 text-right">
-                                            {item.type === 'food' ? (
-                                                <button
-                                                    onClick={() => useItem(item.id)}
-                                                    className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20"
-                                                >
-                                                    Consume
-                                                </button>
-                                            ) : (
-                                                <button className="px-3 py-1.5 bg-white/5 hover:bg-slate-700 text-slate-400 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-white/5">
-                                                    Details
-                                                </button>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                ))
+                                            <div className="col-span-2 text-right">
+                                                {type === 'food' ? (
+                                                    <button
+                                                        onClick={() => useItem(uId)}
+                                                        className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20"
+                                                    >
+                                                        Consume
+                                                    </button>
+                                                ) : (
+                                                    <button className="px-3 py-1.5 bg-white/5 hover:bg-slate-700 text-slate-400 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-white/5">
+                                                        Details
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })
                             )}
                         </div>
                     </div>

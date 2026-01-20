@@ -1,6 +1,7 @@
 'use client';
 
 import { useMarket } from '@/lib/hooks/useMarket';
+import { useGameStore } from '@/lib/store';
 import { motion } from 'framer-motion';
 import { Package, Tag, Plus, Minus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/Button';
@@ -19,7 +20,8 @@ export function MarketSell() {
         try {
             await methods.handleListAction();
         } catch (e: any) {
-            alert(e.message || "Failed to post listing");
+            const { idsAlert } = useGameStore.getState();
+            await idsAlert(e.message || "Failed to post listing", "Market Exchange", "error");
         }
     };
 
@@ -59,7 +61,7 @@ export function MarketSell() {
                                             </span>
                                         </div>
                                         <div className="flex justify-between items-center group-hover:text-slate-300">
-                                            <IDSLabel color="dim" className="truncate">{item.type}</IDSLabel>
+                                            <IDSLabel color="dim" className="truncate">{item.category}</IDSLabel>
                                             <div className="text-[10px] font-bold font-mono text-amber-500 tabular-nums leading-none">×{item.quantity}</div>
                                         </div>
                                     </div>
@@ -86,7 +88,7 @@ export function MarketSell() {
                                     <div className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
                                         Asset Quality: <span className="text-amber-500">Q{selectedItem.quality}</span>
                                         <span className="w-1 h-1 bg-slate-800 rounded-full" />
-                                        Type: {selectedItem.type.toUpperCase()}
+                                        Category: {selectedItem.category}
                                     </div>
                                 </div>
                             </div>

@@ -3,45 +3,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useGameStore } from '@/lib/store';
 
-export const REGIMEN_DATA = [
-    {
-        id: 0,
-        name: 'Basic Training',
-        image: '⛺',
-        baseStrength: 1.0,
-        baseEnergy: 5,
-    },
-    {
-        id: 1,
-        name: 'Military Academy',
-        image: '🏫',
-        baseStrength: 2.5,
-        baseEnergy: 1,
-    },
-    {
-        id: 2,
-        name: 'Special Forces',
-        image: '🏰',
-        baseStrength: 5.0,
-        baseEnergy: 1,
-    },
-    {
-        id: 3,
-        name: 'Top Secret Program',
-        image: '💎',
-        baseStrength: 10.0,
-        baseEnergy: 1,
-    }
-];
-
 export function useTraining() {
     const {
         user,
+        facilities,
         train,
-        trainingInfo,
-        trainingPricing,
         fetchTraining,
-        fetchTrainingPricing,
         upgradeTrainingGrounds
     } = useGameStore();
 
@@ -51,14 +18,13 @@ export function useTraining() {
 
     useEffect(() => {
         fetchTraining();
-        fetchTrainingPricing();
 
         const interval = setInterval(() => {
             setCurrentTime(Math.floor(Date.now() / 1000));
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [fetchTraining, fetchTrainingPricing]);
+    }, [fetchTraining]);
 
     const toggleRegimen = useCallback((id: number) => {
         setSelectedIds(prev =>
@@ -68,57 +34,57 @@ export function useTraining() {
         );
     }, []);
 
-    const getRegimenCost = useCallback((id: number) => {
-        if (id === 0) return 0;
-        if (!trainingPricing) return 0;
-        return trainingPricing.regimenCosts[id - 1] / 100;
-    }, [trainingPricing]);
-
-    const getRegimenStrength = useCallback((id: number) => {
-        const item = REGIMEN_DATA.find(r => r.id === id);
-        const quality = Number(trainingInfo?.qualities[id] || 1);
-        if (isNaN(quality)) return item?.baseStrength || 1.0;
-        return (item?.baseStrength || 0) * quality;
-    }, [trainingInfo]);
+    const getRegimenData = useCallback((id: number) => {
+        return facilities.find(f => f.id === id);
+    }, [facilities]);
 
     // Totals
     const totalCost = useMemo(() =>
-        user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => sum + getRegimenCost(id), 0),
-        [selectedIds, user?.isAdmin, getRegimenCost]);
+        user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => {
+            const f = getRegimenData(id);
+            return sum + (f?.dailyCostCred || 0);
+        }, 0),
+        [selectedIds, user?.isAdmin, getRegimenData]);
 
     const totalEnergy = useMemo(() =>
         user?.isAdmin ? 0 : selectedIds.reduce((sum, id) => {
-            const item = REGIMEN_DATA.find(r => r.id === id);
-            const energyCost = id === 0 ? (5 + (user?.level || 0)) : (item?.baseEnergy || 0);
+            const f = getRegimenData(id);
+            const energyCost = id === 0 ? (5 + (user?.level || 0)) : (f?.baseEnergy || 0);
             return sum + energyCost;
         }, 0),
-        [selectedIds, user?.level, user?.isAdmin]);
+        [selectedIds, user?.level, user?.isAdmin, getRegimenData]);
 
     const totalStrength = useMemo(() =>
         selectedIds.reduce((sum, id) => {
-            const val = getRegimenStrength(id);
-            return sum + (isNaN(val) ? 0 : val);
+            const f = getRegimenData(id);
+            return sum + (f?.currentStrengthGain || 0);
         }, 0),
-        [selectedIds, getRegimenStrength]);
+        [selectedIds, getRegimenData]);
 
-    // Cooldown
-    const lastTrain = Number(trainingInfo?.lastTrainTime || 0);
-    const cooldownActive = !user?.isAdmin && lastTrain > 0 && currentTime < lastTrain + 86400;
-    const timeRemaining = Math.max(0, (lastTrain + 86400) - currentTime);
+    // Cooldown - This logic would eventually move to a service/model too
+    // For now keeping it here as it depends on store facilities which might need lastTrainTime
+    // Actually, let's keep it simple for now as we don't have lastTrainTime in the mock TrainingFacility yet.
+    // I should probably add it to TrainingFacility if needed for per-facility cooldowns,
+    // but the current contract has a global cooldown.
 
-    const hoursRemaining = Math.floor(timeRemaining / 3600);
-    const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
-    const secondsRemaining = timeRemaining % 60;
+    // For now, let's assume a global cooldown for simplicity until we refine the model further.
+    // In Phase 1, we focus on normalizing the structures we have.
+
+    // Placeholder for global cooldown (if we had it in the model)
+    const cooldownActive = false;
 
     const handleTrainAction = async () => {
-        if (selectedIds.length === 0 || cooldownActive) return;
+        if (selectedIds.length === 0 || isTraining) return;
 
-        const regimensToProcess = selectedIds.map(id => ({
-            id,
-            cost: getRegimenCost(id),
-            strengthBonus: getRegimenStrength(id),
-            energyCost: id === 0 ? (5 + (user?.level || 0)) : (REGIMEN_DATA.find(r => r.id === id)?.baseEnergy || 1)
-        }));
+        const regimensToProcess = selectedIds.map(id => {
+            const f = getRegimenData(id);
+            return {
+                id,
+                cost: f?.dailyCostCred || 0,
+                strengthBonus: f?.currentStrengthGain || 0,
+                energyCost: id === 0 ? (5 + (user?.level || 0)) : (f?.baseEnergy || 1)
+            };
+        });
 
         if (user && user.energy < totalEnergy) {
             throw new Error("Not enough energy!");
@@ -138,29 +104,33 @@ export function useTraining() {
     };
 
     const handleUpgradeAction = async (id: number) => {
-        const quality = trainingInfo?.qualities[id] || 1;
-        if (quality >= 5) return;
+        const f = getRegimenData(id);
+        console.log(`[DEBUG] handleUpgradeAction called with id=${id}`, f);
 
-        const upgradeCost = trainingPricing?.upgradeCosts[quality - 1] || 250000000000;
-        const supraCost = upgradeCost / 100000000;
-
-        if (confirm(`Upgrade this facility to Q${quality + 1} for ${supraCost.toLocaleString()} SUPRA?`)) {
-            await upgradeTrainingGrounds(id);
+        if (!f) {
+            console.error('[handleUpgradeAction] Facility not found for id:', id);
+            return;
         }
+        if (f.isMaxLevel) {
+            console.warn('[handleUpgradeAction] Facility is already at max level');
+            return;
+        }
+        if (f.upgradeCostSupra === null) {
+            console.warn('[handleUpgradeAction] No upgrade cost available (null)');
+            return;
+        }
+
+        console.log(`[DEBUG] Calling upgradeTrainingGrounds(${id})...`);
+        await upgradeTrainingGrounds(id);
     };
 
     return {
         user,
-        trainingInfo,
-        trainingPricing,
+        facilities,
         selectedIds,
         isTraining,
         cooldownActive,
-        timeRemaining: {
-            h: hoursRemaining,
-            m: minutesRemaining,
-            s: secondsRemaining
-        },
+        timeRemaining: { h: 0, m: 0, s: 0 }, // Global cooldown handling will be Phase 2 refinement
         totals: {
             cost: totalCost,
             energy: totalEnergy,
@@ -168,8 +138,8 @@ export function useTraining() {
         },
         methods: {
             toggleRegimen,
-            getRegimenCost,
-            getRegimenStrength,
+            getRegimenCost: (id: number) => getRegimenData(id)?.dailyCostCred || 0,
+            getRegimenStrength: (id: number) => getRegimenData(id)?.currentStrengthGain || 0,
             handleTrainAction,
             handleUpgradeAction
         }

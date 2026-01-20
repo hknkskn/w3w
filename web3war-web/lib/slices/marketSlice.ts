@@ -1,15 +1,16 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
-import { MarketItem, CountryId, COUNTRY_IDS } from '../types';
+import { MarketListing } from '../models/MarketModel';
+import { COUNTRY_IDS, CountryId } from '../types';
 
 export interface MarketSlice {
-    marketItems: MarketItem[];
-    myListings: MarketItem[];
+    marketItems: MarketListing[];
+    myListings: MarketListing[];
     fetchMarketItems: () => Promise<void>;
     fetchMyListings: () => Promise<void>;
-    listMarketItem: (itemId: string, quantity: number, pricePerUnit: number) => void;
-    cancelMarketListing: (listingId: string) => void;
-    buyItem: (itemId: string, quantity: number) => void;
+    listMarketItem: (itemId: any, quantity: number, pricePerUnit: number) => void;
+    cancelMarketListing: (listingId: any) => void;
+    buyItem: (listingId: any, quantity: number) => void;
 }
 
 const CRED_DECIMALS = 100;
@@ -21,34 +22,14 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
     fetchMarketItems: async () => {
         try {
             const { ContractService } = await import('../contract-service');
+            const { MarketService } = await import('../services/market.service');
             const categories = [1, 2, 3, 4]; // Food, Weapon, Material, Ticket
-            let allListings: MarketItem[] = [];
-
-            const { getItemFromOntology } = await import('../ontology');
-            const { COUNTRY_IDS } = await import('../types');
-            const ID_TO_COUNTRY = Object.fromEntries(Object.entries(COUNTRY_IDS).map(([k, v]) => [v, k]));
+            let allListings: MarketListing[] = [];
 
             for (const cat of categories) {
                 const listings = await ContractService.getMarketListingsByCategory(cat);
-                if (listings && Array.isArray(listings)) {
-                    const mapped = listings.map((l: any) => {
-                        const itemId = Number(l.original_item_id);
-                        const quality = Number(l.item_type?.quality || 1);
-                        const ontologyItem = getItemFromOntology(itemId, quality);
-
-                        return {
-                            ...ontologyItem,
-                            id: String(l.id), // Marketplace listing ID
-                            stock: Number(l.quantity),
-                            price: Number(l.price_per_unit) / CRED_DECIMALS,
-                            seller: l.seller,
-                            sellerCountry: ID_TO_COUNTRY[l.country] as CountryId || 'TR',
-                            category: cat === 1 ? 'food' : cat === 2 ? 'weapons' : cat === 3 ? 'raw' : 'tickets',
-                            originalItemId: itemId
-                        } as MarketItem;
-                    });
-                    allListings = [...allListings, ...mapped];
-                }
+                const mapped = MarketService.mapToMarketListings(listings);
+                allListings = [...allListings, ...mapped];
             }
 
             set({ marketItems: allListings });
@@ -60,34 +41,15 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
     fetchMyListings: async () => {
         try {
             const user = get().user;
-            if (!user?.walletAddress) {
+            if (!user?.address) {
                 set({ myListings: [] });
                 return;
             }
             const { ContractService } = await import('../contract-service');
-            const { getItemFromOntology } = await import('../ontology');
-            const listings = await ContractService.getMyListings(user.walletAddress);
+            const { MarketService } = await import('../services/market.service');
+            const listings = await ContractService.getMyListings(user.address);
 
-            if (!listings || !Array.isArray(listings)) {
-                set({ myListings: [] });
-                return;
-            }
-
-            const mapped = listings.map((l: any) => {
-                const itemId = Number(l.original_item_id);
-                const quality = Number(l.item_type?.quality || 1);
-                const ontologyItem = getItemFromOntology(itemId, quality);
-
-                return {
-                    ...ontologyItem,
-                    id: String(l.id),
-                    stock: Number(l.quantity),
-                    price: Number(l.price_per_unit) / CRED_DECIMALS,
-                    seller: l.seller,
-                    category: 'my',
-                    originalItemId: itemId
-                } as MarketItem;
-            });
+            const mapped = MarketService.mapToMarketListings(listings);
 
             set({ myListings: mapped });
         } catch (e) {
@@ -101,10 +63,9 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             const { ContractService } = await import('../contract-service');
             const state = get();
 
-            const item = state.inventory.find(i => i.id === itemId);
+            const numericId = Number(itemId);
+            const item = state.inventory.find(i => i.id === numericId);
             if (!item) return;
-
-            const numericId = parseInt(itemId);
 
             // Map item to contract category
             let category = 3; // Default Raw
@@ -114,8 +75,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             else if (numericId === 203) category = 4; // Ticket
 
             const priceOnChain = Math.floor(pricePerUnit * CRED_DECIMALS);
-            const userCountry = state.user?.citizenship || 'TR';
-            const countryId = COUNTRY_IDS[userCountry] || 1;
+            const countryId = state.user?.countryId || 1;
 
             await ContractService.listMarketItem(
                 numericId,
@@ -132,11 +92,11 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
                 state.fetchInventory();
             }, 3000);
 
-            alert("Listing transaction sent!");
+            await get().idsAlert("Listing transaction sent!", "Global Trade", "success");
 
         } catch (e) {
             console.error(e);
-            alert("Failed to list item");
+            await get().idsAlert("Failed to list item", "Trade Error", "error");
         }
     },
 
@@ -148,21 +108,22 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             // Optimistic update
             const state = get();
             set({
-                marketItems: state.marketItems.filter(l => l.id !== listingId)
+                marketItems: state.marketItems.filter(l => l.id !== Number(listingId))
             });
             state.fetchInventory(); // Refresh inventory
         } catch (e) {
             console.error(e);
-            alert("Failed to cancel listing");
+            await get().idsAlert("Failed to cancel listing", "Trade Error", "error");
         }
     },
 
-    buyItem: async (listingId: string, quantity: number) => {
+    buyItem: async (listingId, quantity) => {
         try {
             const { ContractService } = await import('../contract-service');
-            const tx = await ContractService.buyMarketItem(Number(listingId), quantity);
+            const numericId = typeof listingId === 'string' ? Number(listingId) : listingId;
+            const tx = await ContractService.buyMarketItem(numericId, quantity);
             if (tx) {
-                alert("Purchase request sent!");
+                await get().idsAlert("Purchase request sent!", "Global Trade", "success");
                 setTimeout(() => {
                     const state = get();
                     state.fetchMarketItems();
@@ -172,7 +133,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             }
         } catch (e) {
             console.error(e);
-            alert("Failed to buy item");
+            await get().idsAlert("Failed to buy item", "Trade Error", "error");
         }
     }
 });

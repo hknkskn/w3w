@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TopNavigation } from '@/components/game/TopNavigation';
 import { Clock, Calendar, Search, Bell, Mail, Settings, Zap, Coins, Heart, Star, Wallet } from 'lucide-react';
 import { Button } from '@/components/Button';
+import IDSNotificationPortal from '@/components/ui/ids/IDSNotificationPortal';
 import { useGameStore } from '@/lib/store';
 import LoginScreen from '@/components/game/LoginScreen';
 
@@ -22,16 +23,16 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                     <div className="flex items-center justify-between h-14 overflow-visible">
                         {/* Logo */}
                         <div className="flex items-center gap-6">
-                            <h1 className="text-2xl font-black text-white tracking-tight">
+                            <h1 className="text-xl font-black text-white tracking-tight">
                                 WEB3<span className="text-cyan-400">WAR</span>
                             </h1>
 
                             {/* Primary Resources */}
-                            <div className="flex items-center gap-4 pl-6 border-l border-slate-700">
-                                <ResourcePill icon={<Zap size={14} />} value={Math.floor(user.energy || 0)} label="Energy" color="cyan" />
-                                <ResourcePill icon={<Heart size={14} />} value={(user.level || 1) * 100} label="Health" color="emerald" />
-                                <ResourcePill icon={<Coins size={14} />} value={Number(((user.credits || 0)).toFixed(2))} label="CRED" color="amber" />
-                                <ResourcePill icon={<span className="text-xs">💎</span>} value={Number(((user.walletBalance || 0)).toFixed(2))} label="SUPRA" color="purple" />
+                            <div className="flex items-center gap-2 pl-6 border-l border-slate-800">
+                                <ResourcePill icon={<img src="/icons/energie.webp" className="w-3.5 h-3.5 object-contain" alt="" />} value={Math.floor(user.energy || 0)} label="Energy" color="cyan" />
+                                <ResourcePill icon={<Heart size={12} fill="currentColor" />} value={(user.level || 1) * 100} label="Health" color="emerald" />
+                                <ResourcePill icon={<img src="/icons/money.png" className="w-3.5 h-3.5 object-contain" alt="" />} value={Number(((user.credits || 0)).toFixed(2))} label="CRED" color="amber" />
+                                <ResourcePill icon={<img src="/icons/supralogo.webp" className="w-3.5 h-3.5 object-contain" alt="" />} value={Number(((user.supraBalance || 0)).toFixed(2))} label="SUPRA" color="gold" />
                             </div>
                         </div>
 
@@ -39,11 +40,11 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                         <div className="flex items-center gap-4">
                             {/* Search */}
                             <div className="relative hidden lg:block">
-                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input
                                     type="text"
-                                    placeholder="Search..."
-                                    className="w-48 pl-9 pr-3 py-2 bg-slate-800/60 border border-slate-700/50 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 text-sm"
+                                    placeholder="SEARCH COMMANDS..."
+                                    className="w-48 pl-9 pr-3 py-1.5 bg-slate-950/40 border border-slate-800 rounded-lg text-[10px] font-bold text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/30 transition-all uppercase tracking-wider"
                                 />
                             </div>
 
@@ -62,7 +63,7 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                             {/* Connect Wallet / Profile */}
                             <Button size="sm" className="bg-cyan-600 hover:bg-cyan-500 text-white gap-2 border border-cyan-400/20">
                                 <Wallet size={14} />
-                                {user.walletAddress ? `${user.walletAddress.slice(0, 6)}...` : 'Connect Wallet'}
+                                {user.address ? `${user.address.slice(0, 6)}...${user.address.slice(-4)}` : 'Connect Wallet'}
                             </Button>
 
                             {/* Profile Avatar */}
@@ -91,7 +92,7 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                 {/* Footer */}
                 <footer className="mt-12 pt-6 border-t border-slate-800 text-center">
                     <div className="flex justify-center gap-6 text-xs text-slate-500 font-medium mb-3">
-                        <a href="#" className="hover:text-cyan-400 transition-colors">Wiki</a>
+                        <Link href="/wiki" className="hover:text-cyan-400 transition-colors">Wiki</Link>
                         <a href="#" className="hover:text-cyan-400 transition-colors">Blog</a>
                         <a href="#" className="hover:text-cyan-400 transition-colors">Discord</a>
                         <a href="#" className="hover:text-cyan-400 transition-colors">Twitter</a>
@@ -100,20 +101,23 @@ export default function GameLayout({ children }: { children: ReactNode }) {
                     <div className="text-xs text-slate-600">© 2025 Web3War - Built on Supra Network</div>
                 </footer>
             </div>
+
+            <IDSNotificationPortal />
         </div>
     );
 }
 
 function ResourcePill({ icon, value, label, color }: { icon: React.ReactNode, value: number, label: string, color: string }) {
     const colorMap: Record<string, string> = {
-        cyan: 'text-cyan-400 bg-cyan-950 border-cyan-800/50',
-        emerald: 'text-emerald-400 bg-emerald-950 border-emerald-800/50',
-        amber: 'text-amber-400 bg-amber-950 border-amber-800/50',
-        purple: 'text-purple-400 bg-purple-950 border-purple-800/50',
+        cyan: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20 shadow-sm',
+        emerald: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20 shadow-sm',
+        amber: 'text-amber-400 bg-amber-500/10 border-amber-500/20 shadow-sm',
+        gold: 'text-orange-400 bg-orange-500/10 border-orange-500/20 shadow-sm',
+        slate: 'text-slate-400 bg-slate-800/20 border-slate-700 shadow-inner',
     };
 
     return (
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border ${colorMap[color]}`}>
+        <div className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border ${colorMap[color] || colorMap.slate}`}>
             {icon}
             <span className="text-white font-bold text-sm">{value.toLocaleString()}</span>
             <span className="text-xs text-slate-500 hidden xl:inline">{label}</span>

@@ -98,8 +98,8 @@ export default function BattlesPage() {
     }
 
     // Logic to pick best item from inventory
-    const weapons = inventory.filter(i => i.id === '202' && i.quantity > 0).sort((a, b) => b.quality - a.quality);
-    const missiles = inventory.filter(i => i.id === '204' && i.quantity > 0).sort((a, b) => b.quality - a.quality);
+    const weapons = inventory.filter(i => i.id === 202 && i.quantity > 0).sort((a, b) => b.quality - a.quality);
+    const missiles = inventory.filter(i => i.id === 204 && i.quantity > 0).sort((a, b) => b.quality - a.quality);
 
     const bestWeapon = weapons[0];
     const bestMissile = missiles[0];
@@ -196,7 +196,7 @@ export default function BattlesPage() {
                 </div>
             </div>
 
-            <main className="p-4 max-w-7xl mx-auto space-y-4">
+            <main className="p-4 space-y-4 mt-2">
                 <div className="grid grid-cols-12 gap-4">
                     {/* Log Panel */}
                     <div className="col-span-3 flex flex-col gap-4">

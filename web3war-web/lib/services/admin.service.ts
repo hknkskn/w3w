@@ -1,5 +1,16 @@
-import { BaseService, WE3WAR_MODULES, RPC_URL } from './base.service';
+import { BaseService, WE3WAR_MODULES, RPC_URL, hexToUint8Array } from './base.service';
 import { BCS } from 'supra-l1-sdk';
+
+/**
+ * Normalizes an address to a 32-byte Uint8Array for BCS serialization.
+ */
+const normalizeAddressToBytes = (addr: string): number[] => {
+    const clean = addr.toLowerCase().replace('0x', '');
+    const bytes = new Uint8Array(32);
+    const hexBytes = Buffer.from(clean.padStart(64, '0'), 'hex');
+    bytes.set(hexBytes.slice(-32)); // Ensure we take the last 32 bytes if padded
+    return Array.from(bytes);
+};
 
 export const AdminService = {
     /**
@@ -49,7 +60,7 @@ export const AdminService = {
             "mint_item",
             [],
             [
-                Array.from(new Uint8Array(Buffer.from(target.replace('0x', ''), 'hex'))),
+                normalizeAddressToBytes(target),
                 Array.from(BCS.bcsSerializeUint64(BigInt(itemId))),
                 Array.from(BCS.bcsSerializeU8(category)),
                 Array.from(BCS.bcsSerializeU8(quality)),
@@ -67,7 +78,7 @@ export const AdminService = {
             WE3WAR_MODULES.ADMIN.split('::')[1],
             "add_admin",
             [],
-            [Array.from(new Uint8Array(Buffer.from(newAdmin.replace('0x', ''), 'hex')))]
+            [normalizeAddressToBytes(newAdmin)]
         );
     },
 
@@ -77,7 +88,7 @@ export const AdminService = {
             WE3WAR_MODULES.ADMIN.split('::')[1],
             "remove_admin",
             [],
-            [Array.from(new Uint8Array(Buffer.from(target.replace('0x', ''), 'hex')))]
+            [normalizeAddressToBytes(target)]
         );
     }
 };

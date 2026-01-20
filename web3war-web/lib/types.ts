@@ -142,7 +142,7 @@ export interface Citizen {
     location: RegionId;
 
     // Economy
-    employerId?: string | number; // Updated to allow number from contract
+    employerId?: number;
     credits: number; // Main currency (Game CRED)
     walletBalance?: number; // On-Chain CRED Balance (Wallet)
     militaryUnitId?: number;

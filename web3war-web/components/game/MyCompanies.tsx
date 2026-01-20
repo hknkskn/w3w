@@ -2,37 +2,30 @@
 
 import { useState } from 'react';
 import { useGameStore } from '@/lib/store';
-import { Company, CompanyType, COMPANY_TYPES_CONFIG } from '@/lib/types';
+import { CompanyProfile, COMPANY_TYPES } from '@/lib/models/CompanyModel';
 import { Button } from '@/components/Button';
 import {
     Factory,
     Construction,
-    TrendingUp,
-    Users,
     Zap,
     Shield,
-    Package,
     PlusCircle,
-    Building2,
-    ChevronRight,
-    Trophy,
-    Boxes
 } from 'lucide-react';
 import { CompanyManager } from './CompanyManager';
+import { motion } from 'framer-motion';
 
 export default function MyCompanies() {
     const { companies, user, createCompany } = useGameStore();
-    const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+    const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [newCompanyName, setNewCompanyName] = useState('');
-    const [newCompanyType, setNewCompanyType] = useState<CompanyType>('RAW_GRAIN');
+    const [newCompanyType, setNewCompanyType] = useState<number>(1); // Default to Grain Farm (1)
 
     // Filter companies owned by the user
     const userCompanies = companies.filter(c => {
-        const ownerLower = c.ownerId?.toLowerCase();
-        const userIdLower = user?.id?.toLowerCase();
-        const walletLower = user?.walletAddress?.toLowerCase();
-        return ownerLower === userIdLower || ownerLower === walletLower;
+        const ownerLower = c.owner?.toLowerCase();
+        const addressLower = user?.address?.toLowerCase();
+        return ownerLower === addressLower;
     });
 
     const selectedCompany = companies.find(c => c.id === selectedCompanyId);
@@ -67,7 +60,7 @@ export default function MyCompanies() {
                             <Factory size={40} className="mx-auto text-slate-700 mb-4 opacity-50" />
                             <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">No assets registered under this sector.</p>
                             <Button
-                                className="mt-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
+                                className="mt-6 bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 font-black uppercase text-[10px] tracking-widest"
                                 onClick={() => setIsCreateModalOpen(true)}
                             >
                                 START PRODUCTION
@@ -86,18 +79,18 @@ export default function MyCompanies() {
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-4">
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${selectedCompanyId === company.id ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-900 text-slate-500 group-hover:bg-slate-800'}`}>
-                                            {company.type.includes('RAW') ? <Zap size={20} /> : <Shield size={20} />}
+                                            {company.type < 10 ? <Zap size={20} /> : <Shield size={20} />}
                                         </div>
                                         <div>
                                             <h3 className="text-xs font-black text-white uppercase tracking-tight">{company.name}</h3>
                                             <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                                                {COMPANY_TYPES_CONFIG[company.type].name} • Q{company.quality}
+                                                {COMPANY_TYPES[company.type]?.name || 'Industrial Unit'} • Q{company.quality}
                                             </div>
                                         </div>
                                     </div>
                                     <div className="text-right">
                                         <div className={`text-xs font-mono font-bold ${selectedCompanyId === company.id ? 'text-cyan-400' : 'text-slate-300'}`}>
-                                            {company.productStock || 0}
+                                            {company.stocks.product}
                                         </div>
                                         <div className="text-[8px] text-slate-600 font-black uppercase">STOCKS</div>
                                     </div>
@@ -165,21 +158,21 @@ export default function MyCompanies() {
 
                             <div>
                                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-1">Industry Sector</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    {(Object.keys(COMPANY_TYPES_CONFIG) as CompanyType[]).map(type => (
+                                <div className="grid grid-cols-2 gap-3 max-h-[200px] overflow-y-auto custom-scrollbar p-1">
+                                    {Object.entries(COMPANY_TYPES).map(([id, info]) => (
                                         <button
-                                            key={type}
-                                            onClick={() => setNewCompanyType(type)}
-                                            className={`p-4 rounded-xl border text-left transition-all ${newCompanyType === type
+                                            key={id}
+                                            onClick={() => setNewCompanyType(Number(id))}
+                                            className={`p-4 rounded-xl border text-left transition-all ${newCompanyType === Number(id)
                                                 ? 'bg-cyan-500/10 border-cyan-500/50 text-white'
                                                 : 'bg-slate-800/30 border-slate-700/50 text-slate-500 hover:bg-slate-800 hover:text-slate-300'
                                                 }`}
                                         >
                                             <div className="text-[10px] font-black uppercase tracking-tight leading-none mb-1">
-                                                {COMPANY_TYPES_CONFIG[type].name}
+                                                {info.name}
                                             </div>
                                             <div className="text-[8px] opacity-40 font-bold uppercase tracking-widest leading-none">
-                                                {type.includes('RAW') ? 'Resource Extraction' : 'Manufacturing'}
+                                                {Number(id) < 10 ? 'Resource Extraction' : 'Manufacturing'}
                                             </div>
                                         </button>
                                     ))}

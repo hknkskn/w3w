@@ -9,7 +9,8 @@ interface DropdownItem {
     label: string;
     href?: string;
     onClick?: () => void;
-    icon: LucideIcon;
+    icon?: LucideIcon;
+    customIcon?: string;
     badge?: number;
     description?: string;
     color?: string;
@@ -76,7 +77,11 @@ export function TacticalDropdown({ label, icon: Icon, items, badge, active }: Ta
                                     const content = (
                                         <>
                                             <div className={`flex items-center justify-center transition-transform group-hover:scale-110`}>
-                                                <item.icon size={16} className={`${item.color || 'text-slate-400'} group-hover:text-cyan-400 transition-colors`} />
+                                                {item.customIcon ? (
+                                                    <img src={item.customIcon} className="w-4 h-4 object-contain opacity-70 group-hover:opacity-100 transition-opacity" alt="" />
+                                                ) : item.icon ? (
+                                                    <item.icon size={16} className={`${item.color || 'text-slate-400'} group-hover:text-cyan-400 transition-colors`} />
+                                                ) : null}
                                             </div>
                                             <div className="flex-1 flex items-center justify-between overflow-hidden text-left">
                                                 <div className="flex flex-col">

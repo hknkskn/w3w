@@ -1,5 +1,6 @@
 import { BaseService, WE3WAR_MODULES, parseMoveString } from './base.service';
 import { BCS } from 'supra-l1-sdk';
+import { CompanyProfile } from '../models/CompanyModel';
 
 export const CompanyService = {
     /**
@@ -145,6 +146,47 @@ export const CompanyService = {
     /**
      * Upgrade Company Quality
      */
+    /**
+     * DDS Mapper: Normalizes raw company data into CompanyProfile domain models
+     */
+    mapToCompanies: (rawCompanies: any[]): CompanyProfile[] => {
+        if (!rawCompanies || !Array.isArray(rawCompanies)) return [];
+
+        return rawCompanies.map(raw => ({
+            id: Number(raw.id),
+            name: parseMoveString(raw.name),
+            type: Number(raw.company_type),
+            regionId: Number(raw.region_id),
+            owner: raw.owner,
+            quality: Number(raw.quality),
+            funds: Number(raw.balance) / 100, // CRED 2 decimals
+            stocks: {
+                raw: Number(raw.raw_stock || 0),
+                product: Number(raw.product_stock || 0)
+            },
+            employeeCount: Number(raw.employees ? raw.employees.length : 0),
+            employees: Array.isArray(raw.employees) ? raw.employees.map((e: any) => String(e)) : []
+        }));
+    },
+
+    /**
+     * DDS Mapper: Normalizes job offers
+     */
+    mapToJobOffers: (rawCompanies: any[]): any[] => {
+        if (!rawCompanies || !Array.isArray(rawCompanies)) return [];
+
+        return rawCompanies
+            .filter(c => c.job_offer && Boolean(c.job_offer.active) && Number(c.job_offer.open_positions) > 0)
+            .map(c => ({
+                companyId: Number(c.id),
+                companyName: parseMoveString(c.name),
+                salary: Number(c.job_offer.salary) / 100,
+                positions: Number(c.job_offer.open_positions),
+                quality: Number(c.quality),
+                type: Number(c.company_type)
+            }));
+    },
+
     upgradeCompanyQuality: async (companyId: number): Promise<string> => {
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.COMPANY.split('::')[0],

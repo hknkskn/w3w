@@ -31,11 +31,11 @@ export function TopNavigation() {
             <Link
                 href="/dashboard"
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${pathname === '/dashboard'
-                    ? 'bg-slate-700 text-cyan-400 border border-slate-600'
+                    ? 'bg-slate-700 text-cyan-400 border border-slate-600 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
                     }`}
             >
-                <Home size={18} />
+                <img src="/icons/dashboard.webp" className="w-5 h-5 object-contain" alt="" />
                 <span>Dashboard</span>
             </Link>
 
@@ -48,9 +48,8 @@ export function TopNavigation() {
                 badge={1}
                 items={[
                     { label: 'Residence', href: '/profile', icon: UserCircle, description: 'Personal status' },
-                    { label: 'Training Center', href: '/training', icon: Target, description: 'Strength drills', badge: 1, color: 'text-amber-400' },
-                    { label: 'My Companies', href: '/companies', icon: Building2, description: 'Asset management', color: 'text-blue-400' },
-                    { label: 'Industrial Complex', href: '/industrial', icon: Factory, description: 'Manufacturing' },
+                    { label: 'Training Center', href: '/training', customIcon: "/icons/Training.webp", description: 'Strength drills', badge: 1, color: 'text-amber-400' },
+                    { label: 'Industrial Complex', href: '/industrial', customIcon: "/icons/industrial.webp", description: 'Manufacturing & Workforce' },
                     { label: 'Newspaper', href: '/newspaper', icon: Newspaper, description: 'Media hub' },
                 ]}
             />
@@ -62,7 +61,7 @@ export function TopNavigation() {
                 active={pathname === '/battles' || pathname === '/map'}
                 items={[
                     { label: 'Battlefields', href: '/battles', icon: Swords, description: 'Active conflicts' },
-                    { label: 'World Map', href: '/map', icon: Map, description: 'Global operations' },
+                    { label: 'World Map', href: '/map', customIcon: "/icons/Worldmap.webp", description: 'Global operations' },
                     { label: 'Military Units', href: '/battles', icon: Briefcase, description: 'Squadron data' },
                 ]}
             />
@@ -74,7 +73,7 @@ export function TopNavigation() {
                 active={pathname === '/market'}
                 items={[
                     { label: 'Market', href: '/market', icon: ShoppingBag, description: 'Buy & Sell items' },
-                    { label: 'Inventory', icon: Backpack, href: '/inventory', description: 'Your equipment' },
+                    { label: 'Inventory', customIcon: "/icons/inventory.webp", href: '/inventory', description: 'Your equipment' },
                     { label: 'Job Market', icon: Users, href: '/companies', description: 'Personnel hiring' },
                 ]}
             />

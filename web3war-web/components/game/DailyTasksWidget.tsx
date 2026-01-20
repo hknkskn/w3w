@@ -97,7 +97,8 @@ export function DailyTasksWidget() {
 
         // Check requirements
         if (task.energyCost && user.energy < task.energyCost) {
-            alert("Not enough energy!"); // transform to toast later
+            const { idsAlert } = useGameStore.getState();
+            idsAlert("Not enough energy!", "Physical Exhaustion", "warning");
             return;
         }
 
@@ -112,7 +113,8 @@ export function DailyTasksWidget() {
             else addDamage(100);
         } else if (task.id === 'eat') {
             if (user.energy >= user.maxEnergy) {
-                alert("Energy full!");
+                const { idsAlert } = useGameStore.getState();
+                idsAlert("Energy full!", "Metabolism Limit", "info");
                 return;
             }
             restoreEnergy(10); // Bread restores 10
@@ -138,14 +140,14 @@ export function DailyTasksWidget() {
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Trophy size={16} className="text-amber-400" />
+                        <Trophy size={16} className="text-cyan-400" />
                         <h3 className="font-bold text-white text-sm">Daily Challenge</h3>
                     </div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs text-slate-400">{completedCount}/{tasks.length} completed</span>
                         <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                             <div
-                                className="h-full bg-gradient-to-r from-amber-500 to-orange-500"
+                                className="h-full bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
                                 style={{ width: `${(completedCount / tasks.length) * 100}%` }}
                             />
                         </div>
@@ -214,13 +216,13 @@ export function DailyTasksWidget() {
                     <motion.div
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mx-3 mb-3 p-3 bg-gradient-to-r from-amber-500/20 to-orange-500/20 rounded-lg border border-amber-500/30 flex items-center justify-between"
+                        className="mx-3 mb-3 p-3 bg-gradient-to-r from-cyan-500/10 to-emerald-500/10 rounded-lg border border-cyan-500/30 flex items-center justify-between"
                     >
                         <div className="flex items-center gap-2">
-                            <Gift className="text-amber-400" size={18} />
-                            <span className="text-sm font-bold text-amber-400">Daily Bonus Unlocked!</span>
+                            <Gift className="text-cyan-400" size={18} />
+                            <span className="text-sm font-bold text-cyan-400">Daily Bonus Unlocked!</span>
                         </div>
-                        <Button size="sm" className="bg-gradient-to-r from-amber-500 to-orange-500">
+                        <Button size="sm" className="bg-gradient-to-r from-cyan-600 to-emerald-600 text-white border border-cyan-400/20">
                             Claim +10 CRED
                         </Button>
                     </motion.div>

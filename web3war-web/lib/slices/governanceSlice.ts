@@ -42,10 +42,10 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
 
     checkCongressMembership: async (countryId) => {
         const { user } = get();
-        if (!user || !user.walletAddress) return;
+        if (!user || !user.address) return;
         try {
             const { ContractService } = await import('../contract-service');
-            const isMember = await (ContractService as any).checkCongressMember(user.walletAddress, countryId);
+            const isMember = await (ContractService as any).checkCongressMember(user.address, countryId);
             set({ isCongressMember: !!isMember });
         } catch (e) {
             console.error("Store: Failed to check congress membership", e);
@@ -100,7 +100,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.registerCandidate(countryId);
             if (tx) {
-                alert("Candidate registration sent!");
+                await get().idsAlert("Candidate registration sent!", "Election Bureau", "success");
                 setTimeout(() => get().fetchCandidates(countryId), 3000);
             }
         } catch (e) {
@@ -113,7 +113,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.vote(countryId, candidateIdx);
             if (tx) {
-                alert("Vote casted successfully!");
+                await get().idsAlert("Vote casted successfully!", "Election Bureau", "success");
                 setTimeout(() => get().fetchCandidates(countryId), 3000);
             }
         } catch (e) {
@@ -126,7 +126,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.createProposal(countryId, type, data);
             if (tx) {
-                alert("Proposal created!");
+                await get().idsAlert("Proposal created!", "Congress Registry", "success");
                 setTimeout(() => get().fetchProposals(), 3000);
             }
         } catch (e) {
@@ -139,7 +139,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.voteProposal(proposalId, support);
             if (tx) {
-                alert("Vote on proposal sent!");
+                await get().idsAlert("Vote on proposal sent!", "Congress Registry", "success");
                 setTimeout(() => get().fetchProposals(), 3000);
             }
         } catch (e) {
@@ -170,10 +170,10 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
                 await new Promise(r => setTimeout(r, 500));
             }
 
-            alert("Governance initialized with 10 countries!");
+            await get().idsAlert("Governance initialized with 10 countries!", "Foundation Protocol", "success");
         } catch (e) {
             console.error("Governance initialization failed:", e);
-            alert("Failed to initialize governance");
+            await get().idsAlert("Failed to initialize governance", "System Error", "error");
         }
     }
 });
