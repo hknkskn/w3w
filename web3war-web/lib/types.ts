@@ -1,21 +1,25 @@
 export type CountryId = 'NG' | 'UA' | 'RU' | 'US' | 'TR' | 'IN' | 'ES' | 'PL' | 'BR' | 'FR';
 
-export const COUNTRY_CONFIG: Record<CountryId, { name: string, flag: string, color: string }> = {
-    'NG': { name: 'Nigeria', flag: '/image/flags/Flag_of_Nigeria.svg', color: '#16a34a' }, // green-600
-    'UA': { name: 'Ukraine', flag: '/image/flags/Flag_of_Ukraine.svg', color: '#fbbf24' }, // amber-400
-    'RU': { name: 'Russia', flag: '/image/flags/Flag_of_Russia.svg', color: '#f87171' }, // red-400
-    'US': { name: 'United States', flag: '/image/flags/Flag_of_United_States.svg', color: '#3b82f6' }, // blue-500
-    'TR': { name: 'Turkey', flag: '/image/flags/Flag_of_Turkey.svg', color: '#ef4444' }, // red-500
-    'IN': { name: 'India', flag: '/image/flags/Flag_of_India.svg', color: '#f97316' }, // orange-500
-    'ES': { name: 'Spain', flag: '/image/flags/Flag_of_Spain.svg', color: '#facc15' }, // yellow-400
-    'PL': { name: 'Poland', flag: '/image/flags/Flag_of_Poland.svg', color: '#f43f5e' }, // rose-500
-    'BR': { name: 'Brazil', flag: '/image/flags/Flag_of_Brazil.svg', color: '#22c55e' }, // green-500
-    'FR': { name: 'France', flag: '/image/flags/Flag_of_France.svg', color: '#2563eb' }, // blue-600
+export const COUNTRY_CONFIG: Record<CountryId, { name: string, fullName: string, flag: string, color: string, capital: string }> = {
+    'NG': { name: 'Nigeria', fullName: 'Federal Republic of Nigeria', flag: '/image/flags/Flag_of_Nigeria.svg', color: '#16a34a', capital: 'Abuja' },
+    'UA': { name: 'Ukraine', fullName: 'Ukraine', flag: '/image/flags/Flag_of_Ukraine.svg', color: '#fbbf24', capital: 'Kyiv' },
+    'RU': { name: 'Russia', fullName: 'Russian Federation', flag: '/image/flags/Flag_of_Russia.svg', color: '#f87171', capital: 'Moscow' },
+    'US': { name: 'United States', fullName: 'United States of America', flag: '/image/flags/Flag_of_United_States.svg', color: '#3b82f6', capital: 'Washington D.C.' },
+    'TR': { name: 'Turkey', fullName: 'Republic of Turkey', flag: '/image/flags/Flag_of_Turkey.svg', color: '#ef4444', capital: 'Ankara' },
+    'IN': { name: 'India', fullName: 'Republic of India', flag: '/image/flags/Flag_of_India.svg', color: '#f97316', capital: 'New Delhi' },
+    'ES': { name: 'Spain', fullName: 'Kingdom of Spain', flag: '/image/flags/Flag_of_Spain.svg', color: '#facc15', capital: 'Madrid' },
+    'PL': { name: 'Poland', fullName: 'Republic of Poland', flag: '/image/flags/Flag_of_Poland.svg', color: '#f43f5e', capital: 'Warsaw' },
+    'BR': { name: 'Brazil', fullName: 'Federative Republic of Brazil', flag: '/image/flags/Flag_of_Brazil.svg', color: '#22c55e', capital: 'Brasília' },
+    'FR': { name: 'France', fullName: 'French Republic', flag: '/image/flags/Flag_of_France.svg', color: '#2563eb', capital: 'Paris' },
 };
 
 export const COUNTRY_IDS: Record<CountryId, number> = {
     'NG': 1, 'UA': 2, 'RU': 3, 'US': 4, 'TR': 5,
     'IN': 6, 'ES': 7, 'PL': 8, 'BR': 9, 'FR': 10
+};
+
+export const getCountryKey = (id: number): CountryId => {
+    return (Object.keys(COUNTRY_IDS) as CountryId[]).find(key => COUNTRY_IDS[key] === id) || 'TR';
 };
 
 export interface Battle {
@@ -195,6 +199,8 @@ export interface ElectionCandidate {
     address: string;
     username: string;
     votes: number;
+    strength?: number;
+    level?: number;
 }
 
 export interface CountryData {

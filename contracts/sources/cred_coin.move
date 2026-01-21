@@ -60,4 +60,11 @@ module web3war::cred_coin {
         let coins = coin::mint(amount, &caps.mint);
         coin::deposit(recipient, coins);
     }
+
+    /// Internal burn (Authorized modules only)
+    public(friend) fun internal_burn(account: &signer, amount: u64) acquires Caps {
+        let caps = borrow_global<Caps>(@web3war);
+        let coins = coin::withdraw<CRED>(account, amount);
+        coin::burn(coins, &caps.burn);
+    }
 }

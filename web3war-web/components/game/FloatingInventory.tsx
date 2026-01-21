@@ -11,7 +11,8 @@ export function FloatingInventory() {
     const [filter, setFilter] = useState<'all' | 'food' | 'weapon' | 'material' | 'ticket'>('all');
 
     const filteredInventory = (inventory || []).filter(item => {
-        const matchesFilter = filter === 'all' || item.type === filter;
+        const itemType = item.category === 1 ? 'food' : item.category === 2 ? 'weapon' : item.category === 3 ? 'material' : 'ticket';
+        const matchesFilter = filter === 'all' || itemType === filter;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         return matchesFilter && matchesSearch;
     });
@@ -131,11 +132,11 @@ export function FloatingInventory() {
                                         <div className="text-xs font-black text-white truncate mb-1">{item.name}</div>
                                         <div className="text-[10px] font-bold text-slate-500 mb-3">Qty: <span className="text-cyan-400">{item.quantity}</span></div>
 
-                                        {item.type === 'food' && (
+                                        {item.category === 1 && (
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    useItem(item.id);
+                                                    useItem(`${item.id}-${item.category}-${item.quality}`);
                                                 }}
                                                 className="w-full py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded-lg text-[9px] font-black uppercase transition-all border border-emerald-500/20"
                                             >
@@ -154,7 +155,7 @@ export function FloatingInventory() {
                         <span className="text-[10px] font-mono text-cyan-500/50 uppercase tracking-widest cursor-pointer hover:text-cyan-400 transition-colors">Go to Vault ›</span>
                     </div>
                 </motion.div>
-            </div>
-        </AnimatePresence>
+            </div >
+        </AnimatePresence >
     );
 }

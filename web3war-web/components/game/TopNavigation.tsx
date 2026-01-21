@@ -16,7 +16,8 @@ import {
     Building2,
     Factory,
     Newspaper,
-    Briefcase
+    Briefcase,
+    Landmark
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TacticalDropdown } from './TacticalDropdown';
@@ -47,7 +48,6 @@ export function TopNavigation() {
                 icon={Flag}
                 badge={1}
                 items={[
-                    { label: 'Residence', href: '/profile', icon: UserCircle, description: 'Personal status' },
                     { label: 'Training Center', href: '/training', customIcon: "/icons/Training.webp", description: 'Strength drills', badge: 1, color: 'text-amber-400' },
                     { label: 'Industrial Complex', href: '/industrial', customIcon: "/icons/industrial.webp", description: 'Manufacturing & Workforce' },
                     { label: 'Newspaper', href: '/newspaper', icon: Newspaper, description: 'Media hub' },
@@ -82,13 +82,14 @@ export function TopNavigation() {
             <TacticalDropdown
                 label="Community"
                 icon={Users}
-                active={pathname === '/politics' || pathname === '/profile'}
+                active={pathname === '/politics' || pathname === '/country' || pathname === '/profile'}
                 items={[
-                    { label: 'Politics', href: '/politics', icon: Flag, description: 'National affairs' },
+                    { label: 'Country Hub', href: '/country', icon: Landmark, description: 'National management' },
+                    { label: 'Politics', href: '/politics', icon: Flag, description: 'Political activity' },
                     { label: 'Profile', href: '/profile', icon: UserCircle, description: 'Public citizen data' },
-                    { label: 'Voter Hub', href: '#', icon: FileText, description: 'Active elections' },
                 ]}
             />
+
 
             {/* Premium Button */}
             <Link

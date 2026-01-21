@@ -1,13 +1,16 @@
 /// Governance Module - Web3War
 /// Manages country leadership, elections, congress, and voting.
 module web3war::governance {
-    use std::string::String;
+    use std::string::{Self, String};
     use std::signer;
     use std::vector;
     use aptos_framework::timestamp;
     use aptos_framework::event;
     use web3war::treasury;
     use web3war::citizen;
+    use web3war::admin;
+    use web3war::cred_coin;
+    use aptos_framework::coin;
 
     // ============================================
     // ERRORS
@@ -20,13 +23,22 @@ module web3war::governance {
     const E_NOT_CITIZEN: u64 = 6;
     const E_PROPOSAL_NOT_FOUND: u64 = 7;
     const E_INVALID_TAX_RATE: u64 = 8;
+    const E_INSUFFICIENT_STRENGTH: u64 = 9;
+    const E_INSUFFICIENT_FUNDS: u64 = 10;
+    const E_ELECTION_COOLDOWN: u64 = 11;
 
     // ============================================
     // CONSTANTS
     // ============================================
     const ELECTION_DURATION: u64 = 86400; // 1 day
     const CONGRESS_SIZE: u64 = 20;
-    // Majority is calculated dynamically: (vector::length(&country.congress_members) / 2) + 1
+    
+    // Requirements
+    const MIN_CANDIDATE_STRENGTH: u64 = 250;
+    const CANDIDACY_FEE: u64 = 1000000; // 10,000 CRED (2 decimals)
+    const WAR_FEE: u64 = 100000000; // 1,000,000 CRED
+    const IMPEACHMENT_FEE: u64 = 50000000; // 500,000 CRED
+    const ELECTION_COOLDOWN: u64 = 2592000; // 30 days
 
     // ============================================
     // STRUCTS
@@ -47,6 +59,7 @@ module web3war::governance {
         // Election state
         election_active: bool,
         election_end_time: u64,
+        last_election_time: u64,
         candidates: vector<address>,
         votes: vector<u64>, // Parallel to candidates
         voters: vector<address>, // Who has voted
@@ -123,6 +136,21 @@ module web3war::governance {
         passed: bool,
     }
 
+    #[event]
+    struct WarDeclared has drop, store {
+        country_id: u8,
+        target_country_id: u8,
+        initiator: address,
+    }
+
+    #[event]
+    struct ImpeachmentInitiated has drop, store {
+        country_id: u8,
+        proposal_id: u64,
+        initiator: address,
+        target_president: address,
+    }
+
     // ============================================
     // INITIALIZATION
     // ============================================
@@ -142,11 +170,13 @@ module web3war::governance {
     // ============================================
 
     public entry fun setup_country(
-        _admin: &signer,
+        admin: &signer,
         id: u8,
         name: String
     ) acquires GovernanceRegistry {
-        // TODO: Admin check
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(admin_addr), 100); // E_NOT_ADMIN
+        
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         
         let country = Country {
@@ -159,6 +189,7 @@ module web3war::governance {
             vat: 5,
             election_active: false,
             election_end_time: 0,
+            last_election_time: 0,
             candidates: vector::empty(),
             votes: vector::empty(),
             voters: vector::empty(),
@@ -167,14 +198,50 @@ module web3war::governance {
         vector::push_back(&mut reg.countries, country);
     }
 
+    /// Mass setup all 10 countries for the initial deployment
+    public entry fun mass_setup_countries(admin: &signer) acquires GovernanceRegistry {
+        setup_country(admin, 1, string::utf8(b"Nigeria"));
+        setup_country(admin, 2, string::utf8(b"Ukraine"));
+        setup_country(admin, 3, string::utf8(b"Russia"));
+        setup_country(admin, 4, string::utf8(b"United States"));
+        setup_country(admin, 5, string::utf8(b"Turkey"));
+        setup_country(admin, 6, string::utf8(b"India"));
+        setup_country(admin, 7, string::utf8(b"Spain"));
+        setup_country(admin, 8, string::utf8(b"Poland"));
+        setup_country(admin, 9, string::utf8(b"Brazil"));
+        setup_country(admin, 10, string::utf8(b"France"));
+    }
+
     public entry fun appoint_congress(
-        _admin: &signer,
+        admin: &signer,
         country_id: u8,
         members: vector<address>
     ) acquires GovernanceRegistry {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(admin_addr), 100);
+        
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         let country = find_country_mut(&mut reg.countries, country_id);
         country.congress_members = members;
+    }
+
+    public entry fun appoint_president(
+        admin: &signer,
+        country_id: u8,
+        president: address
+    ) acquires GovernanceRegistry {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(admin_addr), 100);
+        
+        let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
+        let country = find_country_mut(&mut reg.countries, country_id);
+        country.president = president;
+
+        event::emit(PresidentElected {
+            country_id,
+            president,
+            votes_received: 0, // Direct appointment
+        });
     }
 
     // ============================================
@@ -183,14 +250,21 @@ module web3war::governance {
 
     /// Start an election
     public entry fun start_election(
-        _admin: &signer,
+        admin: &signer,
         country_id: u8,
     ) acquires GovernanceRegistry {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin::is_admin(admin_addr), 100);
+
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         let country = find_country_mut(&mut reg.countries, country_id);
         
+        let now = timestamp::now_seconds();
+        assert!(now >= country.last_election_time + ELECTION_COOLDOWN, E_ELECTION_COOLDOWN);
+
         country.election_active = true;
-        country.election_end_time = timestamp::now_seconds() + ELECTION_DURATION;
+        country.election_end_time = now + ELECTION_DURATION;
+        country.last_election_time = now;
         country.candidates = vector::empty();
         country.votes = vector::empty();
         country.voters = vector::empty();
@@ -207,6 +281,18 @@ module web3war::governance {
         country_id: u8,
     ) acquires GovernanceRegistry {
         let candidate = signer::address_of(account);
+        
+        // 1. Citizenship check
+        assert!(citizen::get_citizenship(candidate) == country_id, E_NOT_CITIZEN);
+        
+        // 2. Strength check
+        assert!(citizen::get_strength(candidate) >= MIN_CANDIDATE_STRENGTH, E_INSUFFICIENT_STRENGTH);
+        
+        // 3. Fee payment (10k CRED)
+        assert!(coin::balance<cred_coin::CRED>(candidate) >= CANDIDACY_FEE, E_INSUFFICIENT_FUNDS);
+        coin::transfer<cred_coin::CRED>(account, @web3war, CANDIDACY_FEE);
+        treasury::deposit_tax(country_id, CANDIDACY_FEE, 99); // Type 99 = Fees
+
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         let country = find_country_mut(&mut reg.countries, country_id);
         
@@ -229,6 +315,10 @@ module web3war::governance {
         candidate_idx: u64,
     ) acquires GovernanceRegistry {
         let voter = signer::address_of(account);
+        
+        // Citizenship check for voting
+        assert!(citizen::get_citizenship(voter) == country_id, E_NOT_CITIZEN);
+
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         let country = find_country_mut(&mut reg.countries, country_id);
         
@@ -303,9 +393,16 @@ module web3war::governance {
         
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         
-        // Check if congress member
         let country = find_country(&reg.countries, country_id);
-        assert!(vector::contains(&country.congress_members, &proposer), E_NOT_CONGRESS_MEMBER);
+        
+        // Allowed if congress member OR President
+        let is_congress = vector::contains(&country.congress_members, &proposer);
+        let is_president = country.president == proposer;
+        
+        assert!(is_congress || is_president, E_NOT_CONGRESS_MEMBER);
+        
+        // Impeachment cannot be created through normal create_proposal
+        assert!(proposal_type != 4, 99); 
         
         let proposal_id = reg.next_proposal_id;
         reg.next_proposal_id = reg.next_proposal_id + 1;
@@ -343,10 +440,15 @@ module web3war::governance {
         
         let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
         let proposal = find_proposal_mut(&mut reg.proposals, proposal_id);
-        
-        // Check if congress member
         let country = find_country(&reg.countries, proposal.country_id);
-        assert!(vector::contains(&country.congress_members, &voter), E_NOT_CONGRESS_MEMBER);
+        
+        if (proposal.proposal_type == 4) {
+            // Impeachment: Public vote for citizens
+            assert!(citizen::get_citizenship(voter) == proposal.country_id, E_NOT_CITIZEN);
+        } else {
+            // Normal proposal: Congress member only
+            assert!(vector::contains(&country.congress_members, &voter), E_NOT_CONGRESS_MEMBER);
+        };
         
         assert!(!vector::contains(&proposal.voters, &voter), E_ALREADY_VOTED);
         
@@ -364,8 +466,13 @@ module web3war::governance {
         });
         
         // Auto-execute if majority reached
-        let total_congress = vector::length(&country.congress_members);
-        let majority = (total_congress / 2) + 1;
+        let majority = if (proposal.proposal_type == 4) {
+            // Impeachment majority: 50% of population + 1
+            (citizen::get_population(proposal.country_id) / 2) + 1
+        } else {
+            // Congress majority: 50% of members + 1
+            (vector::length(&country.congress_members) / 2) + 1
+        };
 
         if (proposal.yes_votes >= majority && !proposal.executed) {
             proposal.executed = true;
@@ -381,6 +488,72 @@ module web3war::governance {
                 passed: false,
             });
         };
+    }
+
+    /// Presidential direct action: Declare War
+    public entry fun declare_war(
+        account: &signer,
+        country_id: u8,
+        target_country_id: u8,
+    ) acquires GovernanceRegistry {
+        let proposer = signer::address_of(account);
+        let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
+        let country = find_country_mut(&mut reg.countries, country_id);
+        
+        assert!(country.president == proposer, E_NOT_PRESIDENT);
+        
+        // Burn 1M CRED
+        cred_coin::internal_burn(account, WAR_FEE);
+        
+        event::emit(WarDeclared {
+            country_id,
+            target_country_id,
+            initiator: proposer,
+        });
+    }
+
+    /// Citizen-initiated impeachment
+    public entry fun initiate_impeachment(
+        account: &signer,
+        country_id: u8,
+    ) acquires GovernanceRegistry {
+        let initiator = signer::address_of(account);
+        
+        // 1. Citizenship check
+        assert!(citizen::get_citizenship(initiator) == country_id, E_NOT_CITIZEN);
+        
+        // 2. Fee payment (500k CRED)
+        cred_coin::internal_burn(account, IMPEACHMENT_FEE);
+        
+        let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
+        let country = find_country(&reg.countries, country_id);
+        let president = country.president;
+        
+        // 3. Create Impeachment Proposal (Type 4)
+        let proposal_id = reg.next_proposal_id;
+        reg.next_proposal_id = reg.next_proposal_id + 1;
+        
+        let proposal = Proposal {
+            id: proposal_id,
+            country_id,
+            proposer: initiator,
+            proposal_type: 4, 
+            data: vector::empty(), // No extra data needed for impeachment
+            yes_votes: 1, 
+            no_votes: 0,
+            voters: vector::singleton(initiator),
+            created_at: timestamp::now_seconds(),
+            executed: false,
+        };
+        
+        vector::push_back(&mut reg.proposals, proposal);
+        
+        event::emit(ImpeachmentInitiated {
+            country_id,
+            proposal_id,
+            initiator,
+            target_president: president,
+        });
     }
 
     fun execute_proposal(reg: &mut GovernanceRegistry, proposal_id: u64) {
@@ -415,7 +588,32 @@ module web3war::governance {
                  treasury::withdraw_funds(proposal.country_id, amt);
                  citizen::add_credits(proposal.proposer, amt);
             }
-        }
+        } else if (proposal.proposal_type == 4) { // Impeachment
+            // Remove president
+            country.president = @0x0;
+        };
+    }
+
+    /// Presidential Executive Decree
+    /// Allows President to set tax rates within a strictly regulated range (5-20%)
+    public entry fun executive_decree(
+        account: &signer,
+        country_id: u8,
+        tax_type: u8, // 0=Inc, 1=Imp, 2=VAT
+        new_rate: u8
+    ) acquires GovernanceRegistry {
+        let proposer = signer::address_of(account);
+        let reg = borrow_global_mut<GovernanceRegistry>(@web3war);
+        
+        let country = find_country_mut(&mut reg.countries, country_id);
+        assert!(country.president == proposer, E_NOT_PRESIDENT);
+        
+        // Regulation check (5-20%)
+        assert!(new_rate >= 5 && new_rate <= 20, E_INVALID_TAX_RATE);
+        
+        if (tax_type == 0) { country.income_tax = new_rate };
+        if (tax_type == 1) { country.import_tax = new_rate };
+        if (tax_type == 2) { country.vat = new_rate };
     }
 
     // ============================================

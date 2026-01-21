@@ -361,5 +361,17 @@ export const CitizenService = {
             [],
             []
         );
+    },
+
+    /**
+     * Get Country Population
+     */
+    getPopulation: async (countryId: number): Promise<number> => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.CITIZEN}::get_population`, [], [countryId]);
+            return Number(result?.result?.[0] || result?.[0] || 0);
+        } catch (e) {
+            return 0;
+        }
     }
 };

@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { Loader2 } from 'lucide-react';
 import { useGameStore } from '@/lib/store';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 
 // Dynamic import to avoid SSR issues with react-simple-maps
 const WorldMapContainer = dynamic(
@@ -49,10 +49,10 @@ export default function MapPage() {
                 <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl p-4 border border-slate-700/50">
                     <div className="text-xs text-slate-400 mb-1">Your Location</div>
                     <div className="text-lg font-bold text-white flex items-center gap-2">
-                        {useGameStore.getState().user?.citizenship && COUNTRY_CONFIG[useGameStore.getState().user?.citizenship as CountryId] ? (
+                        {useGameStore.getState().user?.countryId && COUNTRY_CONFIG[Object.keys(COUNTRY_IDS).find(k => COUNTRY_IDS[k as CountryId] === useGameStore.getState().user?.countryId) as CountryId] ? (
                             <>
-                                <img src={COUNTRY_CONFIG[useGameStore.getState().user?.citizenship as CountryId].flag} className="w-5 h-3 object-cover rounded shadow-sm border border-white/10" alt="" />
-                                <span>{COUNTRY_CONFIG[useGameStore.getState().user?.citizenship as CountryId].name}</span>
+                                <img src={COUNTRY_CONFIG[Object.keys(COUNTRY_IDS).find(k => COUNTRY_IDS[k as CountryId] === useGameStore.getState().user?.countryId) as CountryId].flag} className="w-5 h-3 object-cover rounded shadow-sm border border-white/10" alt="" />
+                                <span>{COUNTRY_CONFIG[Object.keys(COUNTRY_IDS).find(k => COUNTRY_IDS[k as CountryId] === useGameStore.getState().user?.countryId) as CountryId].name}</span>
                             </>
                         ) : (
                             <span>Unknown Location</span>

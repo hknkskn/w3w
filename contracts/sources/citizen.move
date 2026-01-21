@@ -1,5 +1,6 @@
 module web3war::citizen {
     use std::string::{Self, String};
+    use std::vector;
     use std::signer;
     use aptos_framework::event;
     use aptos_framework::timestamp;
@@ -34,6 +35,7 @@ module web3war::citizen {
 
     struct CitizenRegistry has key {
         next_id: u64,
+        population: vector<u64>, // Index is country_id
     }
 
     // ... (existing events)
@@ -61,7 +63,13 @@ module web3war::citizen {
 
     fun init_module(admin: &signer) {
         if (!exists<CitizenRegistry>(signer::address_of(admin))) {
-            move_to(admin, CitizenRegistry { next_id: 1 });
+            let population = vector::empty<u64>();
+            let i = 0;
+            while (i < 255) {
+                vector::push_back(&mut population, 0);
+                i = i + 1;
+            };
+            move_to(admin, CitizenRegistry { next_id: 1, population });
         };
     }
     
@@ -97,6 +105,10 @@ module web3war::citizen {
         // No, entry function register needs signer to register for coin.
         // We'll handle coin registration in frontend or a separate call.
 
+        // Update population
+        let pop = vector::borrow_mut(&mut reg.population, (citizenship as u64));
+        *pop = *pop + 1;
+
         event::emit(CitizenRegistered { id, addr, username, citizenship });
     }
 
@@ -127,6 +139,16 @@ module web3war::citizen {
     public fun get_level(addr: address): u64 acquires CitizenProfile {
         if (!exists<CitizenProfile>(addr)) return 0;
         borrow_global<CitizenProfile>(addr).level
+    }
+
+    #[view]
+    public fun get_population(country_id: u8): u64 acquires CitizenRegistry {
+        let reg = borrow_global<CitizenRegistry>(@web3war);
+        if ((country_id as u64) < vector::length(&reg.population)) {
+            *vector::borrow(&reg.population, (country_id as u64))
+        } else {
+            0
+        }
     }
 
     /// Internal helper to spend energy

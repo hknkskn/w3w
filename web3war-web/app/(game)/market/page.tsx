@@ -3,208 +3,348 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
-import { ShoppingCart, TrendingUp, Package, Search, Filter, Star, Coins, Sword, Beef, Ticket, Home, Pickaxe } from 'lucide-react';
+import {
+    ShoppingCart,
+    TrendingUp,
+    Package,
+    Search,
+    Hash
+} from 'lucide-react';
 import { MarketSell } from '@/components/game/MarketSell';
-import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ============================================================
+//  MARKETPLACE - Inventory Style Layout with Advanced Filters
+// ============================================================
+
+// Main view tabs
+const TABS = [
+    { id: 'buy', name: 'Buy', icon: TrendingUp },
+    { id: 'sell', name: 'Sell', icon: ShoppingCart },
+    { id: 'my_offers', name: 'My Offers', icon: Package },
+] as const;
+
+// Category filters with icons matching ITEMS_CATALOG.md
+const CATEGORIES = [
+    { id: 'all', name: 'All Items', icon: '/icons/inventory.webp', catId: null },
+    { id: 'weapons', name: 'Armory', icon: '/icons/weapon.webp', catId: 2 },
+    { id: 'food', name: 'Consumables', icon: '/icons/food.webp', catId: 1 },
+    { id: 'raw', name: 'Raw Goods', icon: '/icons/warehouse.webp', catId: 3 },
+    { id: 'tickets', name: 'Access Keys', icon: '/icons/inventory.webp', catId: 4 },
+];
+
+// Quality filter options
+const QUALITIES = [
+    { id: 'all', name: 'All' },
+    { id: '1', name: 'Q1' },
+    { id: '2', name: 'Q2' },
+    { id: '3', name: 'Q3' },
+    { id: '4', name: 'Q4' },
+    { id: '5', name: 'Q5' },
+];
 
 export default function MarketPage() {
     const searchParams = useSearchParams();
-    const { marketItems, myListings, buyItem, user, cancelMarketListing, fetchMarketItems, fetchMyListings, fetchInventory } = useGameStore();
-    const [selectedCategory, setSelectedCategory] = useState('all');
+    const {
+        marketItems,
+        myListings,
+        buyItem,
+        user,
+        cancelMarketListing,
+        fetchMarketItems,
+        fetchMyListings,
+        fetchInventory
+    } = useGameStore();
 
-    // Initialize view from URL param
+    // View state
     const initialView = searchParams.get('view') as 'buy' | 'sell' | 'my_offers' || 'buy';
     const [view, setView] = useState<'buy' | 'sell' | 'my_offers'>(initialView);
 
+    // Filter states
+    const [selectedCategory, setSelectedCategory] = useState<string>('all');
+    const [qualityFilter, setQualityFilter] = useState<string>('all');
+    const [searchQuery, setSearchQuery] = useState<string>('');
+    const [itemIdFilter, setItemIdFilter] = useState<string>('');
+
+    // Fetch data on mount
     useEffect(() => {
         fetchMarketItems();
-        fetchInventory(); // Ensure user has items to sell
+        fetchInventory();
     }, []);
 
+    // Fetch my listings when switching to escrow view
     useEffect(() => {
         if (view === 'my_offers') {
             fetchMyListings();
         }
     }, [view]);
 
-    const categories = [
-        { id: 'all', name: 'All Items', icon: <Package size={18} /> },
-        { id: 'weapons', name: 'Weapons', icon: <Sword size={18} />, catId: 12 },
-        { id: 'food', name: 'Food', icon: <Beef size={18} />, catId: 11 },
-        { id: 'tickets', name: 'Tickets', icon: <Ticket size={18} />, catId: 13 },
-        { id: 'raw', name: 'Raw Materials', icon: <Pickaxe size={18} /> },
-    ];
+    // Filter out items with ID 0 (Unknown/Invalid items)
+    const validMarketItems = marketItems.filter(l => l.item.id > 0);
+    const validMyListings = myListings.filter(l => l.item.id > 0);
 
-    const filteredItems = view === 'buy'
-        ? (selectedCategory === 'all'
-            ? marketItems
-            : marketItems.filter(l => {
-                const catInfo = categories.find(c => c.id === selectedCategory);
-                if (selectedCategory === 'raw') return l.item.category <= 4;
-                return l.item.category === catInfo?.catId;
-            }))
-        : myListings;
+    // Apply all filters
+    const filteredItems = (view === 'buy' ? validMarketItems : validMyListings).filter(listing => {
+        // Category filter
+        const catInfo = CATEGORIES.find(c => c.id === selectedCategory);
+        const matchesCategory = selectedCategory === 'all' || listing.item.category === catInfo?.catId;
 
-    const handleBuy = (listing: any, quantity: number) => {
+        // Quality filter
+        const matchesQuality = qualityFilter === 'all' || listing.item.quality === Number(qualityFilter);
+
+        // Item ID filter (exact match when provided)
+        const matchesId = !itemIdFilter || listing.item.id === Number(itemIdFilter);
+
+        // Search filter (name-based)
+        const matchesSearch = !searchQuery ||
+            listing.item.name.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesCategory && matchesQuality && matchesId && matchesSearch;
+    });
+
+    // Handle buy action
+    const handleBuy = async (listing: any, quantity: number) => {
         if (!user) {
-            alert("Please login first!");
+            const { idsAlert } = useGameStore.getState();
+            await idsAlert("Please login first!", "Authentication Required", "warning");
             return;
         }
-        buyItem(listing.listingId, quantity);
+        await buyItem(listing.listingId, quantity);
+    };
+
+    // Get quality badge styling
+    const getQualityStyle = (quality: number) => {
+        if (quality >= 5) return 'bg-amber-500/10 border-amber-500/20 text-amber-500';
+        if (quality >= 3) return 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400';
+        return 'bg-slate-900 border-white/5 text-slate-500';
     };
 
     return (
-        <div className="space-y-4 animate-in fade-in duration-500 pb-12 mt-2">
+        <div className="space-y-6 animate-in fade-in duration-500 mt-2">
 
-            {/* HD Tab Navigation */}
-            <div className="flex items-center gap-1 p-1 bg-slate-900/80 rounded-lg border border-slate-800 overflow-x-auto no-scrollbar">
-                {[
-                    { id: 'buy', label: 'Procurement', icon: <TrendingUp size={14} />, color: 'text-cyan-400' },
-                    { id: 'sell', label: 'Liquidation', icon: <ShoppingCart size={14} />, color: 'text-emerald-400' },
-                    { id: 'my_offers', label: 'Escrow', icon: <Package size={14} />, color: 'text-amber-400' },
-                ].map((tab) => (
+            {/* Main Tab Navigation */}
+            <div className="flex items-center gap-1 p-1 bg-slate-900/50 rounded-2xl border border-slate-700/50 overflow-x-auto no-scrollbar">
+                {TABS.map((tab) => (
                     <button
                         key={tab.id}
-                        onClick={() => setView(tab.id as any)}
-                        className={`flex items-center gap-2 px-6 py-2 rounded-md font-black text-[10px] uppercase tracking-widest transition-all whitespace-nowrap ${view === tab.id
-                            ? 'bg-slate-800 text-white shadow-lg border border-slate-700'
-                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                        onClick={() => setView(tab.id)}
+                        className={`flex items-center gap-3 px-6 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${view === tab.id
+                            ? 'bg-slate-700 text-white shadow-lg'
+                            : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50'
                             }`}
                     >
-                        <span className={view === tab.id ? tab.color : 'text-slate-600'}>{tab.icon}</span>
-                        {tab.label}
+                        <tab.icon size={18} className={view === tab.id ? 'text-cyan-400' : 'text-slate-500'} />
+                        {tab.name}
                     </button>
                 ))}
             </div>
 
-            {view === 'sell' ? (
-                <div className="animate-in fade-in duration-300">
-                    <MarketSell />
-                </div>
-            ) : (
-                <div className="grid grid-cols-12 gap-4 items-start">
-                    {/* Compact Categories Sidebar */}
-                    <div className="col-span-12 lg:col-span-3 space-y-3">
-                        <h2 className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] px-2">Facility Registry</h2>
-                        <div className="space-y-0.5">
-                            {categories.map((cat) => (
-                                <div
-                                    key={cat.id}
-                                    onClick={() => setSelectedCategory(cat.id)}
-                                    className={`flex items-center gap-3 px-4 py-2.5 rounded-md border transition-all cursor-pointer group ${selectedCategory === cat.id
-                                        ? 'bg-cyan-500/5 border-cyan-500/30'
-                                        : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/60'
-                                        }`}
-                                >
-                                    <div className={`w-8 h-8 rounded-md flex items-center justify-center text-sm transition-all ${selectedCategory === cat.id ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-950 text-slate-600'}`}>
-                                        {cat.icon}
-                                    </div>
-                                    <span className={`text-[11px] font-black uppercase tracking-tight ${selectedCategory === cat.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>
-                                        {cat.name}
-                                    </span>
+            {/* Tab Content */}
+            <AnimatePresence mode="wait">
+                {view === 'sell' ? (
+                    <motion.div
+                        key="sell"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                    >
+                        <MarketSell />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="market"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="space-y-6"
+                    >
+                        {/* Search & Filter Bar */}
+                        <div className="flex flex-col lg:flex-row gap-4">
+                            {/* Search Input */}
+                            <div className="relative flex-1">
+                                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by item name..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm"
+                                />
+                            </div>
+
+                            {/* Item ID Filter */}
+                            <div className="relative w-full lg:w-40">
+                                <Hash size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                <input
+                                    type="number"
+                                    placeholder="Item ID"
+                                    value={itemIdFilter}
+                                    onChange={(e) => setItemIdFilter(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm font-mono"
+                                />
+                            </div>
+
+                            {/* Quality Filter */}
+                            <div className="flex items-center gap-1 p-1 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl">
+                                {QUALITIES.map((q) => (
+                                    <button
+                                        key={q.id}
+                                        onClick={() => setQualityFilter(q.id)}
+                                        className={`px-3 py-2 rounded-lg text-xs font-black uppercase tracking-wide transition-all ${qualityFilter === q.id
+                                            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                                            : 'text-slate-500 hover:text-white hover:bg-slate-700/50'
+                                            }`}
+                                    >
+                                        {q.name}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Main Content Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+                            {/* Categories Sidebar */}
+                            <div className="lg:col-span-1">
+                                <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 p-4">
+                                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">
+                                        Categories
+                                    </h3>
+                                    <nav className="space-y-1">
+                                        {CATEGORIES.map((cat) => (
+                                            <button
+                                                key={cat.id}
+                                                onClick={() => setSelectedCategory(cat.id)}
+                                                className={`w-full text-left px-4 py-3 text-sm font-bold rounded-lg transition-all flex items-center gap-3 ${selectedCategory === cat.id
+                                                    ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)]'
+                                                    : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
+                                                    }`}
+                                            >
+                                                <img src={cat.icon} className="w-5 h-5 object-contain" alt="" />
+                                                {cat.name}
+                                            </button>
+                                        ))}
+                                    </nav>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* HD Listings Grid */}
-                    <div className="col-span-12 lg:col-span-9 space-y-4">
-                        {/* Search Bar - HD */}
-                        <div className="relative group">
-                            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
-                            <input
-                                type="text"
-                                placeholder="SEARCH MARKET INVENTORY..."
-                                className="w-full pl-12 pr-4 py-3 bg-slate-900 border border-slate-800 rounded-lg text-[11px] font-black text-white placeholder:text-slate-700 tracking-widest focus:outline-none focus:border-cyan-500/30 transition-all shadow-inner uppercase"
-                            />
-                        </div>
-
-                        {/* HD Registry Table */}
-                        <div className="bg-slate-900/40 rounded-xl border border-slate-800 overflow-hidden shadow-2xl">
-                            <div className="grid grid-cols-12 px-6 py-2 bg-slate-900 border-b border-slate-800 text-[9px] font-black text-slate-600 uppercase tracking-[0.2em]">
-                                <div className="col-span-5">Product Matrix</div>
-                                <div className="col-span-2 text-center">Available</div>
-                                <div className="col-span-2 text-center">Price (CRED)</div>
-                                <div className="col-span-3 text-right">Verification</div>
                             </div>
 
-                            <div className="divide-y divide-slate-800/50">
-                                {filteredItems.length === 0 ? (
-                                    <div className="py-20 text-center">
-                                        <Package size={32} className="mx-auto text-slate-800 mb-2 opacity-20" />
-                                        <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">No Active Listings</p>
+                            {/* Listings Table */}
+                            <div className="lg:col-span-4">
+                                <div className="bg-slate-800/20 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 overflow-hidden">
+
+                                    {/* Table Header */}
+                                    <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
+                                        <div className="col-span-5">Asset Specification</div>
+                                        <div className="col-span-2">Quality</div>
+                                        <div className="col-span-1">Qty</div>
+                                        <div className="col-span-2">Price</div>
+                                        <div className="col-span-2 text-right">Action</div>
                                     </div>
-                                ) : (
-                                    filteredItems.map((listing) => (
-                                        <div
-                                            key={listing.id}
-                                            className="grid grid-cols-12 px-6 py-3.5 items-center hover:bg-slate-800/40 transition-all group h-18"
-                                        >
-                                            <div className="col-span-5 flex items-center gap-4">
-                                                <div className="w-12 h-12 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-center text-3xl group-hover:border-cyan-500/20 transition-all">
-                                                    {listing.item.image}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <div className="text-[13px] font-black text-white uppercase tracking-tight truncate leading-none mb-1 group-hover:text-cyan-400 transition-colors">
-                                                        {listing.item.name}
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[8px] text-slate-600 font-black uppercase tracking-widest leading-none border border-slate-800 px-1 py-0.5 rounded-sm">Q{listing.item.quality} • {listing.item.category}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
 
-                                            <div className="col-span-2 text-center">
-                                                <div className="text-sm font-bold font-mono text-white tabular-nums">
-                                                    {listing.item.quantity.toLocaleString()}
+                                    {/* Table Body */}
+                                    <div className="divide-y divide-white/5 min-h-[400px] max-h-[600px] overflow-y-auto">
+                                        {filteredItems.length === 0 ? (
+                                            <div className="py-24 text-center">
+                                                <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-dashed border-slate-700 opacity-20">
+                                                    <Package size={24} />
                                                 </div>
-                                                <div className="text-[8px] text-slate-600 font-black uppercase">UNITS</div>
+                                                <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                                                    No Listings Found
+                                                </p>
+                                                <p className="text-slate-600 text-[9px] mt-1 uppercase tracking-wide">
+                                                    Try adjusting your filters
+                                                </p>
                                             </div>
-
-                                            <div className="col-span-2 text-center">
-                                                <div className="flex items-center justify-center gap-1.5 font-black text-amber-500 tabular-nums text-base font-mono">
-                                                    {listing.pricePerUnit.toFixed(2)}
-                                                </div>
-                                            </div>
-
-                                            <div className="col-span-3 flex items-center justify-end gap-2">
-                                                {view === 'buy' ? (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <input
-                                                            type="number"
-                                                            min="1"
-                                                            max={listing.item.quantity}
-                                                            className="w-10 h-8 bg-slate-950 border border-slate-800 rounded text-center text-[11px] font-mono font-bold text-cyan-400 focus:outline-none focus:border-cyan-500/30"
-                                                            defaultValue="1"
-                                                            id={`qty-${listing.id}`}
-                                                        />
-                                                        <button
-                                                            onClick={() => {
-                                                                const qty = (document.getElementById(`qty-${listing.id}`) as HTMLInputElement)?.value;
-                                                                handleBuy(listing, Number(qty));
-                                                            }}
-                                                            className="h-8 px-5 bg-emerald-600 hover:bg-emerald-500 text-[10px] font-black text-white rounded active:scale-95 transition-all uppercase tracking-widest shadow-lg"
-                                                        >
-                                                            BUY
-                                                        </button>
+                                        ) : (
+                                            filteredItems.map((listing) => (
+                                                <motion.div
+                                                    key={listing.id}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-white/[0.02] transition-colors group"
+                                                >
+                                                    {/* Asset Specification */}
+                                                    <div className="col-span-5 flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform border border-white/5 overflow-hidden p-2">
+                                                            <img
+                                                                src={listing.item.image}
+                                                                className="w-full h-full object-contain filter drop-shadow-lg"
+                                                                alt={listing.item.name}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-bold text-white group-hover:text-cyan-400 transition-colors uppercase tracking-tight">
+                                                                {listing.item.name}
+                                                            </div>
+                                                            <div className="text-[9px] text-slate-500 font-black uppercase tracking-tighter mt-0.5">
+                                                                ID: #{listing.item.id} • {listing.seller?.slice(0, 6)}...
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => cancelMarketListing(listing.id)}
-                                                        className="h-8 px-4 bg-slate-800 hover:bg-red-600 text-[9px] font-black text-slate-400 hover:text-white border border-slate-700 hover:border-red-500 rounded transition-all uppercase tracking-widest"
-                                                    >
-                                                        CANCEL
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+
+                                                    {/* Quality Badge */}
+                                                    <div className="col-span-2">
+                                                        <div className={`inline-flex px-2 py-0.5 rounded text-[10px] font-black border ${getQualityStyle(listing.item.quality)}`}>
+                                                            Q{listing.item.quality}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Quantity */}
+                                                    <div className="col-span-1 text-white font-mono font-bold">
+                                                        {listing.item.quantity.toLocaleString()}
+                                                    </div>
+
+                                                    {/* Price */}
+                                                    <div className="col-span-2">
+                                                        <div className="text-amber-500 font-mono font-bold">
+                                                            {listing.pricePerUnit.toFixed(2)}
+                                                        </div>
+                                                        <div className="text-[8px] text-slate-600 font-bold uppercase">
+                                                            CRED / unit
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Action */}
+                                                    <div className="col-span-2 flex items-center justify-end gap-2">
+                                                        {view === 'buy' ? (
+                                                            <>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max={listing.item.quantity}
+                                                                    defaultValue="1"
+                                                                    id={`qty-${listing.id}`}
+                                                                    className="w-12 h-8 bg-slate-900 border border-white/5 rounded text-center text-sm font-mono text-white focus:outline-none focus:border-cyan-500/30"
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const qty = (document.getElementById(`qty-${listing.id}`) as HTMLInputElement)?.value;
+                                                                        handleBuy(listing, Number(qty));
+                                                                    }}
+                                                                    className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20"
+                                                                >
+                                                                    Buy
+                                                                </button>
+                                                            </>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => cancelMarketListing(listing.id)}
+                                                                className="px-4 py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-red-500/20"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </motion.div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

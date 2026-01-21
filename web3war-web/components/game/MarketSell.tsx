@@ -50,8 +50,8 @@ export function MarketSell() {
                                         : 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/60'
                                         }`}
                                 >
-                                    <div className={`w-10 h-10 rounded flex items-center justify-center text-2xl transition-all shrink-0 ${selectedItemId === item.id ? 'bg-amber-500/10 border-amber-500/20 shadow-inner' : 'bg-slate-950 border-slate-800'}`}>
-                                        {item.image}
+                                    <div className={`w-10 h-10 rounded flex items-center justify-center transition-all shrink-0 overflow-hidden ${selectedItemId === item.id ? 'bg-amber-500/10 border-amber-500/20 shadow-inner' : 'bg-slate-950 border-slate-800'}`}>
+                                        <img src={item.image} alt={item.name} className="w-8 h-8 object-contain" />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <div className="flex justify-between items-center mb-0.5">
@@ -72,17 +72,28 @@ export function MarketSell() {
                 </div>
 
                 {/* HD Liquidation Workstation - Using IDSCard */}
-                <IDSCard className="col-span-12 lg:col-span-7 flex flex-col min-h-[480px]">
-                    <div className="flex items-center gap-2 mb-6">
+                <IDSCard className="col-span-12 lg:col-span-7 flex flex-col min-h-[480px] relative overflow-hidden">
+                    {/* Atmospheric Background Icon */}
+                    {selectedItem && (
+                        <div className="absolute -bottom-10 -right-10 w-64 h-64 pointer-events-none opacity-[0.08]">
+                            <img
+                                src={selectedItem.image}
+                                alt=""
+                                className="w-full h-full object-contain filter blur-[2px]"
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex items-center gap-2 mb-6 relative z-10">
                         <Tag size={12} className="text-slate-600" />
-                        <IDSLabel color="dim">LIQUIDATION WORKSTATION</IDSLabel>
+                        <IDSLabel color="dim">SELL WORKSTATION</IDSLabel>
                     </div>
 
                     {selectedItem ? (
-                        <div className="flex-1 flex flex-col space-y-6 animate-in fade-in duration-300">
+                        <div className="flex-1 flex flex-col space-y-6 animate-in fade-in duration-300 relative z-10">
                             {/* Selected Header */}
                             <div className="flex items-center gap-4 p-4 bg-slate-950 rounded-lg border border-slate-800 shadow-inner">
-                                <div className="text-4xl">{selectedItem.image}</div>
+                                <img src={selectedItem.image} alt={selectedItem.name} className="w-12 h-12 object-contain" />
                                 <div>
                                     <div className="font-black text-white text-lg uppercase tracking-tight leading-none">{selectedItem.name}</div>
                                     <div className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
@@ -134,19 +145,24 @@ export function MarketSell() {
                                 </div>
                             </div>
 
-                            <div className="pt-6 border-t border-slate-800 mt-auto">
-                                <button
-                                    onClick={handleList}
-                                    className="w-full h-12 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white text-sm font-black uppercase tracking-[0.2em] rounded-lg transition-all active:scale-[0.98] shadow-lg flex items-center justify-between px-6 group"
-                                >
-                                    <span>POST LISTING</span>
-                                    <div className="flex items-center gap-1.5 text-emerald-100 font-mono text-lg">
-                                        <span>{(form.price * form.quantity).toFixed(2)}</span>
-                                        <span className="text-[8px] font-black">CRED</span>
-                                    </div>
-                                </button>
-                                <p className="text-center text-[8px] text-slate-700 font-black uppercase tracking-widest mt-3">
-                                    ASSETS WILL BE ESCROWED UNTIL SETTLEMENT
+                            <div className="pt-6 border-t border-slate-800 mt-auto space-y-3">
+                                {/* Total Price Display */}
+                                <div className="flex items-center justify-between px-1">
+                                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Total Value</span>
+                                    <span className="text-lg font-mono font-bold text-amber-500">{(form.price * form.quantity).toFixed(2)} <span className="text-xs text-slate-500">CRED</span></span>
+                                </div>
+
+                                {/* Simple Post Button */}
+                                <div className="flex justify-center">
+                                    <button
+                                        onClick={handleList}
+                                        className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-lg transition-all active:scale-[0.98]"
+                                    >
+                                        Post Listing
+                                    </button>
+                                </div>
+                                <p className="text-center text-[8px] text-slate-600 uppercase tracking-widest">
+                                    Assets will be held until sold
                                 </p>
                             </div>
                         </div>

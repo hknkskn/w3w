@@ -16,4 +16,5 @@ export interface CitizenProfile {
     countryId: number;
     rankPoints: number;
     employerId?: number;
+    militaryUnitId?: number;
 }
