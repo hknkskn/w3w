@@ -91,7 +91,7 @@ export function BattleCard({ battle }: BattleCardProps) {
                     </div>
                 </div>
 
-                <Link href={`/wars/${battle.id}`} className="w-1/2">
+                <Link href={`/wars/battle?id=${battle.id}`} className="w-1/2">
                     <Button className="w-full bg-gradient-to-r from-red-600 to-orange-600 text-[10px] font-black uppercase italic tracking-widest h-9 shadow-lg shadow-red-900/20">
                         Campaign
                     </Button>

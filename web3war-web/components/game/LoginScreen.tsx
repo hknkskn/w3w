@@ -5,6 +5,7 @@ import { useGameStore } from '@/lib/store';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
 import { Shield, Wallet, MapPin, User, ChevronRight, Download, RefreshCw, ArrowRight, Coins } from 'lucide-react';
 import { WalletService } from '@/lib/wallet';
+import IDSNotificationPortal from '@/components/ui/ids/IDSNotificationPortal';
 
 const COUNTRIES: { id: CountryId; name: string }[] = [
     { id: 'NG', name: 'Nigeria' },
@@ -73,6 +74,43 @@ export default function LoginScreen() {
                 return;
             }
 
+            // Network Check
+            const chainId = await WalletService.getChainId();
+
+            // Supra Testnet Chain ID is 6
+            if (chainId !== '6') {
+                const { idsConfirm } = useGameStore.getState();
+                const confirmed = await idsConfirm(
+                    `You are connected to the wrong network (Chain ID: ${chainId}). Switch to Supra Testnet (Chain ID: 6) to proceed and avoid errors.`,
+                    "Network Mismatch",
+                    "warning"
+                );
+
+                if (confirmed) {
+                    const switched = await WalletService.switchNetwork('6');
+                    if (!switched) {
+                        setError('Failed to switch network. Please switch to Supra Testnet (Chain ID 6) manually in your StarKey wallet settings.');
+                        setIsConnecting(false);
+                        return;
+                    }
+                    // Wait a moment for network switch to propagate
+                    setError('Network switch requested. Please check your wallet...');
+                    await new Promise(r => setTimeout(r, 2000));
+
+                    // Re-check after switch attempt
+                    const newChainId = await WalletService.getChainId();
+                    if (newChainId !== '6') {
+                        setError('Network still mismatch. Please switch to Supra Testnet manually.');
+                        setIsConnecting(false);
+                        return;
+                    }
+                } else {
+                    setError('Incorrect network. Please switch to Supra Testnet to proceed.');
+                    setIsConnecting(false);
+                    return;
+                }
+            }
+
             setWalletAddress(address);
 
             // Check Registration
@@ -119,7 +157,6 @@ export default function LoginScreen() {
 
             setError('Sending registration transaction...');
             const txHash = await ContractService.registerCitizen(username, countryCode);
-            console.log("Registration TX:", txHash);
 
             setError('Waiting for network confirmation...');
             await new Promise(r => setTimeout(r, 4000));
@@ -443,6 +480,7 @@ export default function LoginScreen() {
                     </p>
                 </div>
             </div>
+            <IDSNotificationPortal />
         </div>
     );
 }

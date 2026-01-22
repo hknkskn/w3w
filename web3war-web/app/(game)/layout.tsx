@@ -1,5 +1,7 @@
 'use client';
 
+import './arena.css';
+
 import { ReactNode } from 'react';
 import Link from 'next/link';
 import { TopNavigation } from '@/components/game/TopNavigation';

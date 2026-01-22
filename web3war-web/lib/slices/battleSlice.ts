@@ -1,6 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
-import { Battle, CountryId, RoundHistory, COUNTRY_IDS } from '../types';
+import { Battle, CountryId, RoundHistory, COUNTRY_IDS, getCountryKey } from '../types';
 
 export interface BattleSlice {
     activeBattles: Battle[];
@@ -9,7 +9,7 @@ export interface BattleSlice {
     pendingWarRewards: any[];
     pendingHeroRewards: any[];
     gameTreasuryBalance: number;
-    lastHit: { damage: number, side: string } | null;
+    lastHit: { damage: number, side: string, timestamp: number } | null;
 
     declareWar: (countryId: number, targetCountryId: number, regionId: number) => Promise<void>;
     startResistanceWar: (regionId: number) => Promise<void>;
@@ -21,6 +21,7 @@ export interface BattleSlice {
     claimWarReward: (battleId: number) => Promise<void>;
     claimHeroReward: (battleId: number, round: number) => Promise<void>;
     fight: (battleId: string, itemId: number, quality?: number) => Promise<void>;
+    fightMulti: (battleId: string, itemId: number, quality: number, count: number) => Promise<void>;
     endActiveRound: (battleId: string) => Promise<void>;
 }
 
@@ -176,8 +177,8 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
                         id: String(id),
                         regionId: Number(regionIds[i]),
                         region: `Region ${regionIds[i]}`,
-                        attacker: String(attackers[i]),
-                        defender: String(defenders[i]),
+                        attacker: getCountryKey(Number(attackers[i])),
+                        defender: getCountryKey(Number(defenders[i])),
                         attackerDamage: roundDetails?.attackerDamage || 0,
                         defenderDamage: roundDetails?.defenderDamage || 0,
                         wallPercentage: Number(wallPercentages[i]),
@@ -230,25 +231,42 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
 
     fight: async (battleId, itemId, quality = 0) => {
         try {
-            const { ContractService } = await import('../contract-service');
+            const { BattleService } = await import('../services/battle.service');
             const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
 
-            // Optimization: Get user info to calculate expected damage for UI feedback
-            const user = get().user;
-            const influence = 1000; // Simplified for now, or use calculate_influence logic
-
-            const tx = await ContractService.fight(numericId, itemId, quality);
+            const tx = await BattleService.fight(numericId, itemId, quality);
             if (tx) {
-                // Trigger hit animation
-                set({ lastHit: { damage: influence, side: 'attacker' } });
+                set({ lastHit: { damage: 1000, side: 'attacker', timestamp: Date.now() } });
                 setTimeout(() => set({ lastHit: null }), 1000);
 
                 setTimeout(() => {
                     get().fetchBattles();
+                    get().fetchDashboardData();
                 }, 2000);
             }
         } catch (e) {
             console.error("Fight error:", e);
+        }
+    },
+
+    fightMulti: async (battleId, itemId, quality, count) => {
+        try {
+            const { BattleService } = await import('../services/battle.service');
+            const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
+
+            const tx = await BattleService.fightMulti(numericId, itemId, quality, count);
+            if (tx) {
+                // UI Feedback for batch attack
+                set({ lastHit: { damage: 1000 * count, side: 'attacker', timestamp: Date.now() } });
+                setTimeout(() => set({ lastHit: null }), 1500);
+
+                setTimeout(() => {
+                    get().fetchBattles();
+                    get().fetchDashboardData();
+                }, 2000);
+            }
+        } catch (e) {
+            console.error("FightMulti error:", e);
         }
     },
 

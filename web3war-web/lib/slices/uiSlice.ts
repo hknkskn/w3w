@@ -20,6 +20,8 @@ export interface UISlice {
     idsConfirm: (message: string, title?: string, severity?: NotificationSeverity) => Promise<boolean>;
     idsPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
     closeNotification: (value?: any) => void;
+    explosionId: number;
+    triggerExplosion: () => void;
 }
 
 export const createUISlice: StateCreator<GameState, [], [], UISlice> = (set, get) => ({
@@ -77,5 +79,9 @@ export const createUISlice: StateCreator<GameState, [], [], UISlice> = (set, get
             activeNotification.resolve(value);
             set({ activeNotification: null });
         }
+    },
+    explosionId: 0,
+    triggerExplosion: () => {
+        set((state) => ({ explosionId: state.explosionId + 1 }));
     },
 });

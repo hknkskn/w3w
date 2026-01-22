@@ -386,6 +386,21 @@ module web3war::battle {
         });
     }
 
+    /// Fight multiple times in a single transaction (Batch Attack)
+    public entry fun fight_multi(
+        account: &signer,
+        battle_id: u64,
+        item_id: u64,
+        weapon_quality: u8,
+        count: u64,
+    ) acquires BattleStore, BattleRoundsRegistry {
+        let i = 0;
+        while (i < count) {
+            fight(account, battle_id, item_id, weapon_quality);
+            i = i + 1;
+        };
+    }
+
     /// End the current round
     public entry fun end_round(
         _account: &signer,

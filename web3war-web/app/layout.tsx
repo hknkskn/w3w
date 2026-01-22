@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${outfit.variable} font-sans bg-[#1a1a1a] text-slate-200 min-h-screen relative overflow-x-hidden`}>
         {/* Global Background Layer */}
         <div className="fixed inset-0 z-0 pointer-events-none">

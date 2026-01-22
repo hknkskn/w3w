@@ -175,6 +175,21 @@ export const BattleService = {
         );
     },
 
+    fightMulti: async (battleId: number, itemId: number, quality: number, count: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "fight_multi",
+            [],
+            [
+                Array.from(BCS.bcsSerializeUint64(battleId)),
+                Array.from(BCS.bcsSerializeUint64(itemId)),
+                Array.from(BCS.bcsSerializeU8(quality)),
+                Array.from(BCS.bcsSerializeUint64(count))
+            ]
+        );
+    },
+
     joinBattle: async (battleId: number, side: number): Promise<string> => {
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.BATTLE.split('::')[0],
@@ -273,8 +288,20 @@ export const BattleService = {
 
     getActiveBattleDetails: async () => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_active_battles`, [], []);
-            return result?.result?.[0] || result?.[0] || [];
+            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_active_battle_details`, [], []);
+            // RPC returns tuple elements as a flat array [ids, regions, ...]. 
+            // Do NOT extract [0] as that only takes the first element (ids).
+            const data = result?.result || result || [];
+            console.log('[DEBUG] Active Battles Raw Data:', data);
+
+            if (data.length >= 5) {
+                // Parse hex strings for u8 vectors if necessary
+                if (typeof data[2] === 'string') data[2] = Array.from(hexToUint8Array(data[2]));
+                if (typeof data[3] === 'string') data[3] = Array.from(hexToUint8Array(data[3]));
+                if (typeof data[4] === 'string') data[4] = Array.from(hexToUint8Array(data[4]));
+            }
+
+            return data;
         } catch (e) {
             return [];
         }

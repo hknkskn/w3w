@@ -6,6 +6,8 @@ export interface StarKeyProvider {
     on: (event: string, callback: any) => void;
     off: (event: string, callback: any) => void;
     supra?: any; // Add optional property for potential multi-provider structure
+    getChainId?: () => Promise<{ chainId: string } | string>;
+    changeNetwork?: (network: string) => Promise<boolean>;
 }
 
 declare global {
@@ -29,11 +31,6 @@ export const WalletService = {
     connect: async (): Promise<string | null> => {
         if (typeof window === 'undefined') return null;
 
-        // Debugging: Log available providers
-        console.log("Window Starkey:", window.starkey);
-        if (window.starkey) {
-            console.log("Starkey Keys:", Object.keys(window.starkey));
-        }
 
         const provider = window.starkey?.supra || window.starkey;
 
@@ -75,6 +72,62 @@ export const WalletService = {
         } catch (error) {
             console.error("StarKey getAccount error:", error);
             return null;
+        }
+    },
+
+    /**
+     * Gets the current chain ID
+     */
+    getChainId: async (): Promise<string | null> => {
+        if (!WalletService.isInstalled()) return null;
+
+        try {
+            const provider = window.starkey?.supra || window.starkey;
+            if (!provider || typeof provider.getChainId !== 'function') return null;
+
+            const chainIdObject = await provider.getChainId();
+            const cid = (chainIdObject as any).chainId || chainIdObject;
+            return cid ? cid.toString().trim() : null;
+        } catch (error) {
+            console.error("StarKey getChainId error:", error);
+            return null;
+        }
+    },
+
+    /**
+     * Requests a network switch
+     */
+    switchNetwork: async (chainId: string): Promise<boolean> => {
+        if (!WalletService.isInstalled()) return false;
+
+        try {
+            const provider = window.starkey?.supra || window.starkey;
+            if (!provider || typeof provider.changeNetwork !== 'function') {
+                console.error("changeNetwork method missing on provider");
+                return false;
+            }
+
+
+            // Try different formats because StarKey's internal implementation can be finicky with Ethers v6
+            try {
+                // Try Direct Numeric
+                const numericId = parseInt(chainId);
+                await provider.changeNetwork(numericId);
+                return true;
+            } catch (e1: any) {
+                try {
+                    // Try Direct String
+                    await provider.changeNetwork(chainId.toString());
+                    return true;
+                } catch (e2: any) {
+                    // Try Object format (Common in newer EIP-compatible providers)
+                    await provider.changeNetwork({ chainId: chainId.toString() });
+                    return true;
+                }
+            }
+        } catch (error: any) {
+            console.error("StarKey switchNetwork error:", error);
+            return false;
         }
     },
 
