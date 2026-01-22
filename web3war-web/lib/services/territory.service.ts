@@ -1,9 +1,11 @@
 import { BaseService, WE3WAR_MODULES, parseMoveString } from './base.service';
+import { BCS } from 'supra-l1-sdk';
 
 export interface RegionData {
     id: number;
     name: string;
     ownerCountry: number;
+    originalOwner: number;
     resourceType: number;
     resourceBonus: number;
     population: number;
@@ -15,7 +17,7 @@ export const TerritoryService = {
      */
     getRegion: async (regionId: number): Promise<RegionData | null> => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.TERRITORY}::get_region`, [], [regionId]);
+            const result = await BaseService.view(`${WE3WAR_MODULES.TERRITORY}::get_region`, [], [String(regionId)]);
             const data = result?.result || result;
 
             if (!data || !Array.isArray(data)) return null;
@@ -24,9 +26,10 @@ export const TerritoryService = {
                 id: Number(data[0]),
                 name: parseMoveString(data[1]),
                 ownerCountry: Number(data[2]),
-                resourceType: Number(data[3]),
-                resourceBonus: Number(data[4]),
-                population: Number(data[5])
+                originalOwner: Number(data[3]),
+                resourceType: Number(data[4]),
+                resourceBonus: Number(data[5]),
+                population: Number(data[6])
             };
         } catch (e) {
             console.error(`Failed to fetch region ${regionId}:`, e);
@@ -48,6 +51,7 @@ export const TerritoryService = {
                 id: Number(r.id),
                 name: parseMoveString(r.name),
                 ownerCountry: Number(r.owner_country),
+                originalOwner: Number(r.original_owner),
                 resourceType: Number(r.resource_type),
                 resourceBonus: Number(r.resource_bonus),
                 population: Number(r.population)
@@ -56,6 +60,22 @@ export const TerritoryService = {
             console.error("Failed to fetch all regions:", e);
             return [];
         }
+    },
+
+    /**
+     * Admin: Force transfer a region to a different country
+     */
+    adminTransferRegion: async (regionId: number, newOwner: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.TERRITORY.split('::')[0],
+            WE3WAR_MODULES.TERRITORY.split('::')[1],
+            "admin_transfer_region",
+            [],
+            [
+                Array.from(BCS.bcsSerializeUint64(regionId)),
+                Array.from(BCS.bcsSerializeU8(newOwner))
+            ]
+        );
     },
 
     /**

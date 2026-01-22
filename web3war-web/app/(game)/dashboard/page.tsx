@@ -14,10 +14,12 @@ import {
     Briefcase,
     Flame,
     TrendingUp,
-    Sword,
+    Swords,
     Shield,
     Clock,
-    Trophy
+    Trophy,
+    Target,
+    Users
 } from 'lucide-react';
 import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 import {
@@ -59,8 +61,9 @@ export default function DashboardPage() {
                     <IDSCard noPadding className="overflow-hidden divide-y divide-slate-700/30">
                         <IDSQuickLink icon={<span>🏛️</span>} label="Politics Dashboard" href="/politics" hasArrow />
                         <IDSQuickLink icon={<span>🎯</span>} label="Training Grounds" href="/training" hasArrow />
-                        <IDSQuickLink icon={<span>🛍️</span>} label="Marketplace" href="/market" hasArrow />
+                        <IDSQuickLink icon={<Swords size={14} />} label="Wars & Campaigns" href="/wars" hasArrow />
                         <IDSQuickLink icon={<span>🏗️</span>} label="Industrial Center" href="/industrial" hasArrow />
+                        <IDSQuickLink icon={<Trophy size={14} />} label="Reward Center" href="/rewards" hasArrow />
                         <IDSQuickLink icon={<Briefcase size={14} />} label="Companies" href="/companies" hasArrow />
                     </IDSCard>
 
@@ -213,7 +216,7 @@ function ProfileCard() {
                 <div className="grid grid-cols-4 gap-2.5">
                     <IDSMissionIcon icon={<img src="/icons/Training.webp" className="w-4 h-4 object-contain" alt="" />} progress={facilities[0]?.quality || 1} max={5} href="/training" />
                     <IDSMissionIcon icon={<img src="/icons/industrial2.webp" className="w-4 h-4 object-contain" alt="" />} done={!!user.employerId} href="/companies" />
-                    <IDSMissionIcon icon={<img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" />} href="/battles" />
+                    <IDSMissionIcon icon={<img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" />} href="/wars" />
                     <IDSMissionIcon icon={<img src="/icons/Worldmap.webp" className="w-4 h-4 object-contain" alt="" />} href="/profile" />
                 </div>
             </div>

@@ -8,9 +8,15 @@ module web3war::treasury {
     const E_INSUFFICIENT_FUNDS: u64 = 1;
     const E_NOT_APPROVED: u64 = 2;
 
+    struct DonorRecord has store, copy, drop {
+        addr: address,
+        amount: u64,
+    }
+
     struct TreasuryBalance has store, copy, drop {
         country_id: u8,
         credits: u64,
+        donors: vector<DonorRecord>,
     }
 
     struct TreasuryRegistry has key {
@@ -21,7 +27,7 @@ module web3war::treasury {
     struct TaxDeposited has drop, store {
         country_id: u8,
         amount: u64,
-        tax_type: u8,
+        tax_type: u8, // 0=Tax, 1=Donation
     }
 
     fun init_module(admin: &signer) {
@@ -30,6 +36,61 @@ module web3war::treasury {
                 balances: vector::empty(),
             });
         };
+    }
+
+    /// Donate CRED to a country treasury
+    public entry fun donate_to_treasury(
+        account: &signer,
+        country_id: u8,
+        amount: u64
+    ) acquires TreasuryRegistry {
+        let addr = signer::address_of(account);
+        
+        // Burn CRED from user (Donation) - Using internal_burn for simplicity or transfer to @web3war
+        // Actually, treasury is just a number here. We should probably transfer coins if this was real.
+        // But in this game architecture, treasury is a virtual balance.
+        web3war::cred_coin::internal_burn(account, amount);
+        
+        let reg = borrow_global_mut<TreasuryRegistry>(@web3war);
+        let i = 0;
+        let len = vector::length(&reg.balances);
+        let found = false;
+        
+        while (i < len) {
+            let b = vector::borrow_mut(&mut reg.balances, i);
+            if (b.country_id == country_id) {
+                b.credits = b.credits + amount;
+                
+                // Update donor record
+                let d_idx = 0;
+                let d_len = vector::length(&b.donors);
+                let d_found = false;
+                while (d_idx < d_len) {
+                    let d = vector::borrow_mut(&mut b.donors, d_idx);
+                    if (d.addr == addr) {
+                        d.amount = d.amount + amount;
+                        d_found = true;
+                        break
+                    };
+                    d_idx = d_idx + 1;
+                };
+                if (!d_found) {
+                    vector::push_back(&mut b.donors, DonorRecord { addr, amount });
+                };
+
+                found = true;
+                break
+            };
+            i = i + 1;
+        };
+        
+        if (!found) {
+            let donors = vector::empty();
+            vector::push_back(&mut donors, DonorRecord { addr, amount });
+            vector::push_back(&mut reg.balances, TreasuryBalance { country_id, credits: amount, donors });
+        };
+        
+        event::emit(TaxDeposited { country_id, amount, tax_type: 1 });
     }
 
     public fun deposit_tax(country_id: u8, amount: u64, tax_type: u8) acquires TreasuryRegistry {
@@ -49,7 +110,7 @@ module web3war::treasury {
         };
         
         if (!found) {
-            vector::push_back(&mut reg.balances, TreasuryBalance { country_id, credits: amount });
+            vector::push_back(&mut reg.balances, TreasuryBalance { country_id, credits: amount, donors: vector::empty() });
         };
         
         event::emit(TaxDeposited { country_id, amount, tax_type });
@@ -86,6 +147,47 @@ module web3war::treasury {
             };
             i = i + 1;
         };
-        abort E_INSUFFICIENT_FUNDS
+        0
+    }
+
+    #[view]
+    public fun get_top_donors(country_id: u8): vector<DonorRecord> acquires TreasuryRegistry {
+        let reg = borrow_global<TreasuryRegistry>(@web3war);
+        let i = 0;
+        let len = vector::length(&reg.balances);
+        while (i < len) {
+            let b = vector::borrow(&reg.balances, i);
+            if (b.country_id == country_id) {
+                return b.donors
+            };
+            i = i + 1;
+        };
+        vector::empty<DonorRecord>()
+    }
+
+    /// Deposit reward from game treasury to country treasury
+    public fun deposit_reward(country_id: u8, amount: u64) acquires TreasuryRegistry {
+        let reg = borrow_global_mut<TreasuryRegistry>(@web3war);
+        let i = 0;
+        let len = vector::length(&reg.balances);
+        let found = false;
+        
+        while (i < len) {
+            let b = vector::borrow_mut(&mut reg.balances, i);
+            if (b.country_id == country_id) {
+                b.credits = b.credits + amount;
+                found = true;
+                break
+            };
+            i = i + 1;
+        };
+        
+        if (!found) {
+            vector::push_back(&mut reg.balances, TreasuryBalance { 
+                country_id, 
+                credits: amount, 
+                donors: vector::empty() 
+            });
+        };
     }
 }

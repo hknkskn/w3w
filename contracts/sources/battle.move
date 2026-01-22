@@ -7,10 +7,14 @@ module web3war::battle {
     use aptos_framework::timestamp;
     use aptos_framework::event;
     use web3war::citizen;
-    use web3war::governance;
     use web3war::territory;
     use web3war::military_unit;
+    use web3war::game_treasury;
     // use web3war::alliance;
+    // Note: Removed governance import to break circular dependency
+    // Authorization is handled by governance before calling battle functions
+    
+    friend web3war::governance;
 
     // ============================================
     // ERRORS
@@ -22,16 +26,23 @@ module web3war::battle {
     const E_SAME_COUNTRY: u64 = 5;
     const E_BATTLE_ALREADY_EXISTS: u64 = 6;
     const E_NOT_AT_WAR: u64 = 7;
+    const E_BATTLE_ON_BREAK: u64 = 8;
+    const E_NOT_ON_BREAK: u64 = 9;
+    const E_ROUND_NOT_FINISHED: u64 = 10;
 
     // ============================================
     // CONSTANTS
     // ============================================
     const FIGHT_ENERGY_COST: u64 = 10;
-    const BATTLE_DURATION: u64 = 14400; // 4 hours in seconds
+    const ROUND_DURATION: u64 = 14400; // 4 hours per round
+    const BREAK_DURATION: u64 = 3600;  // 1 hour break
+    const TOTAL_ROUNDS: u8 = 5;
+    const WIN_POINTS_NEEDED: u8 = 3;
     const BASE_DAMAGE: u64 = 100;
     
     // Achievement Titles
-    const MEDAL_BATTLE_HERO: u64 = 10; // Reward in CRED for Battle Hero
+    const HERO_REWARD_NORMAL: u64 = 1000000;    // 10K CRED per hero (scaled)
+    const HERO_REWARD_RESISTANCE: u64 = 500000; // 5K CRED for resistance
 
     // Item IDs (Phase 13 Ontology)
     const ID_WEAPON: u64 = 202;
@@ -81,6 +92,8 @@ module web3war::battle {
         attacker_points: u8,
         defender_points: u8,
         round_end_time: u64,
+        is_break: bool,         // True if currently in break between rounds
+        break_end_time: u64,    // When break ends
         round_history: vector<RoundHistory>,
     }
 
@@ -176,32 +189,31 @@ module web3war::battle {
     // PUBLIC ENTRY FUNCTIONS
     // ============================================
 
-    /// Declare war on a region (requires President authority)
-    public entry fun declare_war(
-        account: &signer,
-        region_id: u64,
+    // Note: Legacy declare_war function removed to break circular dependency.
+    // War declaration is now handled through governance::declare_war which calls start_war_battle.
+
+    /// Start a war battle (called by governance module)
+    public(friend) fun start_war_battle(
         attacker_country: u8,
+        defender_country: u8,
+        region_id: u64,
+        is_resistance: bool,
+    ) acquires BattleRegistry, BattleStore {
+        start_war_battle_internal(attacker_country, defender_country, region_id, is_resistance, false);
+    }
+
+    /// Internal function to start a war battle
+    fun start_war_battle_internal(
+        attacker_country: u8,
+        defender_country: u8,
+        region_id: u64,
+        is_resistance: bool,
         is_training: bool,
     ) acquires BattleRegistry, BattleStore {
-        let caller = signer::address_of(account);
-        
-        // 1. Authorization: Only president can declare war
-
-        assert!(governance::is_president(caller, attacker_country), E_NOT_AUTHORIZED);
-        
-        let defender_country = territory::get_region_owner(region_id);
-        assert!(attacker_country != defender_country, E_SAME_COUNTRY);
-        
-        // 2. Determine if it's a Resistance War
-        // Simplified: We assume for now if you attack your own region that is occupied, it's resistance.
-        // But since we don't store 'original_owner' yet, we'll set is_resistance to false or 
-        // need to add original_owner to Region struct. For now: false.
-        let is_resistance = false; 
-        
         let registry = borrow_global_mut<BattleRegistry>(@web3war);
         let store = borrow_global_mut<BattleStore>(@web3war);
         
-        // 3. Check if battle already exists for this region
+        // Check if battle already exists for this region
         let i = 0;
         while (i < vector::length(&registry.active_battles)) {
             let b_id = *vector::borrow(&registry.active_battles, i);
@@ -215,11 +227,10 @@ module web3war::battle {
         
         let now = timestamp::now_seconds();
         
-        let (end_time, wall) = if (is_training) {
-            (now + 3600, 50) // Training wars last 1 hour
-        } else {
-            (now + BATTLE_DURATION, 50)
-        };
+        // Total battle time = 5 rounds x 4 hours + 4 breaks x 1 hour = 24 hours
+        let total_duration = (TOTAL_ROUNDS as u64) * ROUND_DURATION + ((TOTAL_ROUNDS - 1) as u64) * BREAK_DURATION;
+        let end_time = if (is_training) { now + 3600 } else { now + total_duration };
+        let wall = 50;
 
         let battle = Battle {
             id: battle_id,
@@ -237,15 +248,14 @@ module web3war::battle {
             current_round: 1,
             attacker_points: 0,
             defender_points: 0,
-            round_end_time: now + 7200,
+            round_end_time: now + ROUND_DURATION,
+            is_break: false,
+            break_end_time: 0,
             round_history: vector::empty(),
         };
         
         vector::push_back(&mut store.battles, battle);
         vector::push_back(&mut registry.active_battles, battle_id);
-        
-        // 4. Handle MPPs (Simplified: If defender has MPPs, they gain defensive bonuses)
-        // In full implementation, this could trigger secondary battles.
         
         event::emit(BattleStarted {
             battle_id,
@@ -254,6 +264,27 @@ module web3war::battle {
             defender: defender_country,
             end_time,
         });
+    }
+
+    /// Check if there's an active battle for a specific region
+    #[view]
+    public fun has_active_battle_for_region(region_id: u64): bool acquires BattleRegistry, BattleStore {
+        if (!exists<BattleRegistry>(@web3war)) return false;
+        if (!exists<BattleStore>(@web3war)) return false;
+        
+        let registry = borrow_global<BattleRegistry>(@web3war);
+        let store = borrow_global<BattleStore>(@web3war);
+        
+        let i = 0;
+        while (i < vector::length(&registry.active_battles)) {
+            let b_id = *vector::borrow(&registry.active_battles, i);
+            let battle = find_battle(&store.battles, b_id);
+            if (battle.region_id == region_id && battle.result == 0) {
+                return true
+            };
+            i = i + 1;
+        };
+        false
     }
 
     /// Calculate influence based on eRep mechanics:
@@ -364,8 +395,10 @@ module web3war::battle {
         let battle = find_battle_mut(&mut store.battles, battle_id);
         
         let now = timestamp::now_seconds();
-        // Simplified: anyone can trigger end round if time is up
-        assert!(now >= battle.round_end_time, E_BATTLE_ENDED);
+        
+        // Cannot end round during break
+        assert!(!battle.is_break, E_BATTLE_ON_BREAK);
+        assert!(now >= battle.round_end_time, E_ROUND_NOT_FINISHED);
 
         // Determine round winner from wall
         let winner_side: u8 = if (battle.wall > 50) { 1 } else { 2 };
@@ -389,9 +422,24 @@ module web3war::battle {
         
         vector::push_back(&mut battle.round_history, history);
         
-        // Reset for next round
-        battle.current_round = battle.current_round + 1;
-        battle.round_end_time = now + 7200;
+        // Check if someone won (first to 3 points)
+        if (battle.attacker_points >= WIN_POINTS_NEEDED || battle.defender_points >= WIN_POINTS_NEEDED) {
+            // Battle will be ended via end_battle call
+            battle.end_time = now; // Allow immediate end_battle call
+            return // Don't start break, battle is effectively over
+        };
+        
+        // Check if this was the last round (5 rounds completed)
+        if (battle.current_round >= TOTAL_ROUNDS) {
+            battle.end_time = now; // Allow immediate end_battle call
+            return
+        };
+        
+        // Start break period (1 hour)
+        battle.is_break = true;
+        battle.break_end_time = now + BREAK_DURATION;
+        
+        // Reset damages for next round (but keep cumulative totals elsewhere if needed)
         battle.attacker_damage = 0;
         battle.defender_damage = 0;
         battle.wall = 50;
@@ -402,7 +450,26 @@ module web3war::battle {
         round_data_mut.defender_top = RoundTopDamager { addr: @0x0, influence: 0 };
     }
 
-    /// End a battle (callable by anyone after timer expires)
+    /// Start the next round after break
+    public entry fun start_next_round(
+        _account: &signer,
+        battle_id: u64
+    ) acquires BattleStore {
+        let store = borrow_global_mut<BattleStore>(@web3war);
+        let battle = find_battle_mut(&mut store.battles, battle_id);
+        
+        let now = timestamp::now_seconds();
+        
+        assert!(battle.is_break, E_NOT_ON_BREAK);
+        assert!(now >= battle.break_end_time, E_ROUND_NOT_FINISHED);
+        
+        // End break and start next round
+        battle.is_break = false;
+        battle.current_round = battle.current_round + 1;
+        battle.round_end_time = now + ROUND_DURATION;
+    }
+
+    /// End a battle (callable by anyone after timer expires or when 3 points reached)
     public entry fun end_battle(
         _account: &signer,
         battle_id: u64,
@@ -412,8 +479,9 @@ module web3war::battle {
         
         let now = timestamp::now_seconds();
         assert!(now >= battle.end_time, E_BATTLE_ENDED);
+        assert!(battle.result == 0, E_BATTLE_ENDED); // Not already ended
         
-        // Determine winner based on points (Simplified: higher points win)
+        // Determine winner based on points
         let winner = if (battle.attacker_points > battle.defender_points) {
             battle.result = 1;
             battle.attacker_country
@@ -438,14 +506,55 @@ module web3war::battle {
             vector::remove(&mut registry.active_battles, idx);
         };
         
-        // 3. Transfer region ownership if attacker won a real war
+        // Transfer region ownership if attacker won a real war
         if (battle.result == 1 && !battle.is_training) {
             territory::transfer_ownership(battle.region_id, battle.attacker_country);
         };
         
-        // 4. Reward distribution (Battle Hero - Placeholder Logic)
-        // In a real implementation we would track top damager per battle.
-        // For now, we emit the status.
+        // Register ganimet (war spoils) with game_treasury if not training
+        if (!battle.is_training) {
+            // Calculate winner reward based on war type
+            let winner_reward = if (battle.is_resistance) {
+                15000000 // 150K CRED (60% of 250K)
+            } else {
+                60000000 // 600K CRED (60% of 1M)
+            };
+            
+            game_treasury::register_war_reward(battle_id, winner, winner_reward);
+            
+            // Register hero rewards for each completed round
+            let hero_amount = game_treasury::get_hero_reward_amount(battle.is_resistance);
+            let i = 0;
+            let len = vector::length(&battle.round_history);
+            while (i < len) {
+                let history = vector::borrow(&battle.round_history, i);
+                let round_num = history.round_number;
+                
+                // Attacker hero
+                if (history.attacker_top.addr != @0x0) {
+                    game_treasury::register_hero_reward(
+                        battle_id, 
+                        round_num, 
+                        history.attacker_top.addr, 
+                        1, // attacker side
+                        hero_amount
+                    );
+                };
+                
+                // Defender hero
+                if (history.defender_top.addr != @0x0) {
+                    game_treasury::register_hero_reward(
+                        battle_id, 
+                        round_num, 
+                        history.defender_top.addr, 
+                        2, // defender side
+                        hero_amount
+                    );
+                };
+                
+                i = i + 1;
+            };
+        };
         
         event::emit(BattleEnded {
             battle_id,
@@ -453,6 +562,69 @@ module web3war::battle {
             attacker_total: battle.attacker_damage,
             defender_total: battle.defender_damage,
         });
+    }
+
+    /// Admin: Force end a battle immediately (winner_side: 1=attacker, 2=defender)
+    public entry fun admin_end_battle(
+        admin: &signer,
+        battle_id: u64,
+        winner_side: u8,
+    ) acquires BattleRegistry, BattleStore {
+        let admin_addr = signer::address_of(admin);
+        assert!(web3war::admin::is_admin(admin_addr), E_NOT_AUTHORIZED);
+        
+        let store = borrow_global_mut<BattleStore>(@web3war);
+        let battle = find_battle_mut(&mut store.battles, battle_id);
+        
+        // Set result based on admin decision
+        let winner = if (winner_side == 1) {
+            battle.result = 1;
+            battle.attacker_country
+        } else {
+            battle.result = 2;
+            battle.defender_country
+        };
+        
+        // Remove from active battles
+        let registry = borrow_global_mut<BattleRegistry>(@web3war);
+        let (found, idx) = vector::index_of(&registry.active_battles, &battle_id);
+        if (found) {
+            vector::remove(&mut registry.active_battles, idx);
+        };
+        
+        // Transfer region ownership if attacker won a real war
+        if (battle.result == 1 && !battle.is_training) {
+            territory::transfer_ownership(battle.region_id, battle.attacker_country);
+        };
+        
+        event::emit(BattleEnded {
+            battle_id,
+            winner,
+            attacker_total: battle.attacker_damage,
+            defender_total: battle.defender_damage,
+        });
+    }
+
+    /// Admin: Cancel a battle (no winner, no territory transfer)
+    public entry fun admin_cancel_battle(
+        admin: &signer,
+        battle_id: u64,
+    ) acquires BattleRegistry, BattleStore {
+        let admin_addr = signer::address_of(admin);
+        assert!(web3war::admin::is_admin(admin_addr), E_NOT_AUTHORIZED);
+        
+        let store = borrow_global_mut<BattleStore>(@web3war);
+        let battle = find_battle_mut(&mut store.battles, battle_id);
+        
+        // Mark as cancelled (result = 3)
+        battle.result = 3;
+        
+        // Remove from active battles
+        let registry = borrow_global_mut<BattleRegistry>(@web3war);
+        let (found, idx) = vector::index_of(&registry.active_battles, &battle_id);
+        if (found) {
+            vector::remove(&mut registry.active_battles, idx);
+        };
     }
 
     // ============================================

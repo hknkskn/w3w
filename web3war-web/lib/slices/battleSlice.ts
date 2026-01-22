@@ -6,11 +6,20 @@ export interface BattleSlice {
     activeBattles: Battle[];
     roundHistory: Record<string, RoundHistory[]>;
     alliances: { a: CountryId, b: CountryId, expires: number }[];
-    declareWar: (regionId: number, isTraining: boolean) => void;
-    startResistanceWar: (regionId: number) => void;
+    pendingWarRewards: any[];
+    pendingHeroRewards: any[];
+    gameTreasuryBalance: number;
+    lastHit: { damage: number, side: string } | null;
+
+    declareWar: (countryId: number, targetCountryId: number, regionId: number) => Promise<void>;
+    startResistanceWar: (regionId: number) => Promise<void>;
+    startNextRound: (battleId: string) => Promise<void>;
     signMPP: (targetCountry: CountryId) => void;
     fetchBattles: () => Promise<void>;
     fetchRoundHistory: (battleId: string) => Promise<void>;
+    fetchPendingRewards: () => Promise<void>;
+    claimWarReward: (battleId: number) => Promise<void>;
+    claimHeroReward: (battleId: number, round: number) => Promise<void>;
     fight: (battleId: string, itemId: number, quality?: number) => Promise<void>;
     endActiveRound: (battleId: string) => Promise<void>;
 }
@@ -19,20 +28,17 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
     activeBattles: [],
     roundHistory: {},
     alliances: [],
+    pendingWarRewards: [],
+    pendingHeroRewards: [],
+    gameTreasuryBalance: 0,
+    lastHit: null,
 
-    declareWar: async (regionId, isTraining) => {
+    declareWar: async (countryId, targetCountryId, regionId) => {
         try {
             const { ContractService } = await import('../contract-service');
-            const user = get().user;
-            if (!user) return;
-
-            const countryCode = user.countryId || 1;
-            // Get the string code for the UI/State consistency
-            const countryString = Object.keys(COUNTRY_IDS).find(key => COUNTRY_IDS[key as CountryId] === countryCode) as CountryId;
-
-            const tx = await ContractService.declareWar(regionId, countryCode, isTraining);
+            const tx = await ContractService.declareWar(countryId, targetCountryId, regionId);
             if (tx) {
-                await get().idsAlert(`${isTraining ? 'Training' : 'War'} declaration sent! Waiting for confirmation...`, "Ministry of Defense", "success");
+                await get().idsAlert("War declaration sent! Awaiting confirmation...", "Department of War", "success");
                 setTimeout(() => get().fetchBattles(), 4000);
             }
         } catch (e) {
@@ -42,28 +48,81 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
     },
 
     startResistanceWar: async (regionId) => {
-        const state = get();
-        if (!state.user) return;
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.startResistance(regionId);
+            if (tx) {
+                await get().idsAlert(`Resistance movement started in Region ${regionId}!`, "Resistance Movement", "warning");
+                setTimeout(() => get().fetchBattles(), 4000);
+            }
+        } catch (e) {
+            console.error("Resistance start error:", e);
+        }
+    },
 
-        const countryCode = state.user.countryId || 1;
-        const countryString = Object.keys(COUNTRY_IDS).find(key => COUNTRY_IDS[key as CountryId] === countryCode) as CountryId;
+    startNextRound: async (battleId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
+            const tx = await ContractService.startNextRound(numericId);
+            if (tx) {
+                await get().idsAlert("Next round initialized!", "Combat Command", "success");
+                setTimeout(() => get().fetchBattles(), 3000);
+            }
+        } catch (e) {
+            console.error("Start next round error:", e);
+        }
+    },
 
-        const newBattle: Battle = {
-            id: `res_${Date.now()}`,
-            region: `Region ${regionId}`,
-            regionId,
-            attacker: countryString || '??',
-            defender: 'Occupier',
-            startTime: Date.now(),
-            endTime: Date.now() + 1000 * 60 * 60 * 4,
-            attackerDamage: 0,
-            defenderDamage: 0,
-            wallPercentage: 50,
-            isResistance: true
-        };
+    fetchPendingRewards: async () => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const { user } = get();
+            if (!user) return;
 
-        set({ activeBattles: [...state.activeBattles, newBattle] });
-        await get().idsAlert(`Resistance War started to liberate Region ${regionId}!`, "Resistance Movement", "warning");
+            const [warRewards, heroRewards, balance] = await Promise.all([
+                ContractService.getPendingWarRewards(user.countryId || 1),
+                ContractService.getPendingHeroRewards(user.address || ''),
+                ContractService.getBalance()
+            ]);
+
+            set({
+                pendingWarRewards: warRewards,
+                pendingHeroRewards: heroRewards,
+                gameTreasuryBalance: balance
+            });
+        } catch (e) {
+            console.error("Fetch rewards error:", e);
+        }
+    },
+
+    claimWarReward: async (battleId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.claimWarReward(battleId);
+            if (tx) {
+                await get().idsAlert("War spoils transferred to national treasury!", "Treasury", "success");
+                setTimeout(() => get().fetchPendingRewards(), 3000);
+            }
+        } catch (e) {
+            console.error("Claim war reward error:", e);
+        }
+    },
+
+    claimHeroReward: async (battleId, round) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.claimHeroReward(battleId, round);
+            if (tx) {
+                await get().idsAlert("Hero reward claimed!", "Veteran Affairs", "success");
+                setTimeout(() => {
+                    get().fetchPendingRewards();
+                    get().fetchDashboardData();
+                }, 3000);
+            }
+        } catch (e) {
+            console.error("Claim hero reward error:", e);
+        }
     },
 
     signMPP: async (targetCountry) => {
@@ -94,28 +153,48 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             const { ContractService } = await import('../contract-service');
             const data = await ContractService.getActiveBattleDetails();
             if (data && data[0]) {
-                const mapped: Battle[] = await Promise.all(data[0].map(async (id: any, i: number) => {
+                // Ensure all data columns are arrays to avoid crashes if single values are returned
+                const ids = Array.isArray(data[0]) ? data[0] : [data[0]];
+                const regionIds = Array.isArray(data[1]) ? data[1] : [data[1]];
+                const attackers = Array.isArray(data[2]) ? data[2] : [data[2]];
+                const defenders = Array.isArray(data[3]) ? data[3] : [data[3]];
+                const wallPercentages = Array.isArray(data[4]) ? data[4] : [data[4]];
+                const endTimes = Array.isArray(data[5]) ? data[5] : [data[5]];
+
+                const mapped: Battle[] = await Promise.all(ids.map(async (id: any, i: number) => {
                     const battleId = Number(id);
-                    // getBattleInfo returns the full Battle struct including current_round
-                    const roundDetails = await ContractService.getBattleInfo(battleId);
+                    // Use getBattleRoundDetails for comprehensive round data including heroes
+                    const roundDetails = await ContractService.getBattleRoundDetails(battleId);
+
+                    console.log(`[DEBUG] Battle ${battleId} - endTimes[${i}]:`, endTimes[i], 'roundDetails:', roundDetails);
+
+                    // Use endTimes from get_active_battle_details, fallback to roundEndTime from roundDetails
+                    const battleEndTime = endTimes[i] ? Number(endTimes[i]) * 1000 : (roundDetails?.roundEndTime ? roundDetails.roundEndTime * 1000 : 0);
+                    const roundEndTimeMs = roundDetails?.roundEndTime ? roundDetails.roundEndTime * 1000 : battleEndTime;
 
                     return {
                         id: String(id),
-                        regionId: Number(data[1][i]),
-                        region: `Region ${data[1][i]}`,
-                        attacker: String(data[2][i]),
-                        defender: String(data[3][i]),
-                        attackerDamage: roundDetails?.attacker_damage || 0, // Properties might be snake_case in Move response
-                        defenderDamage: roundDetails?.defender_damage || 0,
-                        wallPercentage: Number(data[4][i]),
+                        regionId: Number(regionIds[i]),
+                        region: `Region ${regionIds[i]}`,
+                        attacker: String(attackers[i]),
+                        defender: String(defenders[i]),
+                        attackerDamage: roundDetails?.attackerDamage || 0,
+                        defenderDamage: roundDetails?.defenderDamage || 0,
+                        wallPercentage: Number(wallPercentages[i]),
                         startTime: 0,
-                        endTime: Number(data[5][i]) * 1000,
-                        currentRound: roundDetails?.current_round || 1,
-                        attackerPoints: 0, // BattleInfo might not have round points directly?
-                        defenderPoints: 0,
-                        roundEndTime: undefined, // BattleInfo logic differs
-                        attackerTop: undefined,
-                        defenderTop: undefined
+                        endTime: battleEndTime,
+                        currentRound: roundDetails?.currentRound || 1,
+                        attackerPoints: roundDetails?.attackerPoints || 0,
+                        defenderPoints: roundDetails?.defenderPoints || 0,
+                        roundEndTime: roundEndTimeMs,
+                        attackerTop: roundDetails?.attackerTopAddr ? {
+                            addr: roundDetails.attackerTopAddr,
+                            influence: roundDetails.attackerTopInfluence || 0
+                        } : undefined,
+                        defenderTop: roundDetails?.defenderTopAddr ? {
+                            addr: roundDetails.defenderTopAddr,
+                            influence: roundDetails.defenderTopInfluence || 0
+                        } : undefined
                     };
                 }));
                 set({ activeBattles: mapped });
@@ -153,11 +232,19 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
         try {
             const { ContractService } = await import('../contract-service');
             const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
+
+            // Optimization: Get user info to calculate expected damage for UI feedback
+            const user = get().user;
+            const influence = 1000; // Simplified for now, or use calculate_influence logic
+
             const tx = await ContractService.fight(numericId, itemId, quality);
             if (tx) {
+                // Trigger hit animation
+                set({ lastHit: { damage: influence, side: 'attacker' } });
+                setTimeout(() => set({ lastHit: null }), 1000);
+
                 setTimeout(() => {
                     get().fetchBattles();
-                    // Optional: refresh user data if slice allows
                 }, 2000);
             }
         } catch (e) {

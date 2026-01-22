@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, memo } from 'react';
+import { useState, memo, useEffect } from 'react';
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from 'react-simple-maps';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomIn, ZoomOut, Maximize, Map as MapIcon, Users, Shield, Coins, Swords, Flag, Plane } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { useGameStore } from '@/lib/store';
-import { Battle, CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { Battle, CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
+import { RegionSelector } from './RegionSelector';
 
 // World map GeoJSON URL
 const GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -56,13 +57,21 @@ const FACTIONS = [
 ];
 
 export function RealWorldMap() {
-    const { activeBattles, alliances, user } = useGameStore();
+    const { activeBattles, alliances, user, isLandless, fetchLandlessStatus } = useGameStore();
     const [position, setPosition] = useState<{ coordinates: [number, number], zoom: number }>({
         coordinates: [20, 30],
         zoom: 1.5
     });
     const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
     const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
+    const [showRegionSelector, setShowRegionSelector] = useState(false);
+    const [isResistanceSelection, setIsResistanceSelection] = useState(false);
+
+    useEffect(() => {
+        if (user?.countryId) {
+            fetchLandlessStatus(user.countryId);
+        }
+    }, [user?.countryId, fetchLandlessStatus]);
 
     const handleZoomIn = () => {
         if (position.zoom >= 8) return;
@@ -328,17 +337,52 @@ export function RealWorldMap() {
 
                         {/* Actions */}
                         <div className="p-4 border-t border-slate-700 space-y-2">
+                            {isLandless && (COUNTRY_IDS[selectedInfo.id as CountryId] !== user?.countryId) && (
+                                <Button
+                                    onClick={() => {
+                                        setIsResistanceSelection(true);
+                                        setShowRegionSelector(true);
+                                    }}
+                                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 gap-2 font-black uppercase text-xs"
+                                >
+                                    <Swords size={14} /> Start Resistance
+                                </Button>
+                            )}
                             <Button className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 gap-2 font-black uppercase text-xs">
                                 <Plane size={14} /> Travel Here
                             </Button>
-                            <Button
-                                variant="outline"
-                                className={`w-full gap-2 font-black uppercase text-xs ${isConflictZone ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-red-500/30 text-red-400 hover:bg-red-500/10'}`}
-                            >
-                                <Swords size={14} /> {isConflictZone ? 'Join Battle' : 'Declare War'}
-                            </Button>
+                            {!isLandless && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                        if (isConflictZone) {
+                                            // Handle join battle
+                                        } else {
+                                            setIsResistanceSelection(false);
+                                            setShowRegionSelector(true);
+                                        }
+                                    }}
+                                    className={`w-full gap-2 font-black uppercase text-xs ${isConflictZone ? 'border-amber-500/30 text-amber-400 hover:bg-amber-500/10' : 'border-red-500/30 text-red-400 hover:bg-red-500/10'}`}
+                                >
+                                    <Swords size={14} /> {isConflictZone ? 'Join Battle' : 'Declare War'}
+                                </Button>
+                            )}
                         </div>
                     </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showRegionSelector && (
+                    <RegionSelector
+                        targetCountryId={COUNTRY_IDS[selectedInfo?.id as CountryId] || 0}
+                        isResistance={isResistanceSelection}
+                        onClose={() => setShowRegionSelector(false)}
+                        onSelect={(id) => {
+                            console.log("Selected target:", id);
+                            setShowRegionSelector(false);
+                        }}
+                    />
                 )}
             </AnimatePresence>
         </div>

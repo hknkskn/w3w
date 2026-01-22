@@ -8,6 +8,8 @@ module web3war::cred_coin {
     friend web3war::citizen;
     friend web3war::company;
     friend web3war::governance;
+    friend web3war::treasury;
+    friend web3war::game_treasury;
 
     struct CRED {}
 

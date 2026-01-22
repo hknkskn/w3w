@@ -102,22 +102,65 @@ export const BaseService = {
      * Helper for VIEW functions
      */
     view: async (functionFullname: string, typeArgs: any[] = [], args: any[] = []) => {
-        try {
-            const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+        if (!functionFullname) throw new Error("Function name required for view call");
+
+        const MAX_RETRIES = 3;
+        let attempt = 0;
+
+        while (attempt < MAX_RETRIES) {
+            try {
+                const body = JSON.stringify({
                     function: functionFullname,
                     type_arguments: typeArgs,
-                    arguments: args
-                })
-            });
+                    arguments: args.map(arg => {
+                        if (typeof arg === 'bigint') return arg.toString();
+                        if (typeof arg === 'number') return arg;
+                        return arg;
+                    })
+                });
 
-            const result = await response.json();
-            return result?.result || result; // Handle variable RPC formats
-        } catch (e) {
-            console.error(`View call failed for ${functionFullname}:`, e);
-            throw e;
+                const response = await fetch(`${RPC_URL}/rpc/v1/view`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body
+                });
+
+                if (response.status === 429) {
+                    attempt++;
+                    const delay = attempt * 1000 + Math.random() * 500; // Add jitter
+                    if (attempt < MAX_RETRIES) {
+                        console.warn(`[BaseService] Rate limited (429) for ${functionFullname}. Retrying in ${Math.floor(delay)}ms...`);
+                        await new Promise(r => setTimeout(r, delay));
+                        continue;
+                    }
+                }
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    // If function doesn't exist on-chain yet, return null instead of throwing
+                    if (errText.includes("could not find entry function")) {
+                        console.warn(`[BaseService] Function NOT FOUND on-chain: ${functionFullname}`);
+                        return null;
+                    }
+                    throw new Error(`RPC Error (${response.status}): ${errText}`);
+                }
+
+                const result = await response.json();
+                return result?.result || result;
+
+            } catch (e: any) {
+                // Retry on network errors too if we have retries left
+                attempt++;
+                if (attempt < MAX_RETRIES) {
+                    const delay = attempt * 1000;
+                    console.warn(`[BaseService] Network error for ${functionFullname}. Retrying in ${delay}ms...`, e.message);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+
+                console.error(`[BaseService] View call failed for ${functionFullname}:`, e.message || e);
+                throw e;
+            }
         }
     }
 };

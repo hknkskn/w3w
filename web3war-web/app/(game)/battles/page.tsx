@@ -10,8 +10,9 @@ import { Button } from '@/components/Button';
 
 import MilitaryUnitManager from "@/components/game/MilitaryUnitManager";
 import { useGameStore } from "@/lib/store";
-import { Battle, Citizen, CountryId, COUNTRY_CONFIG } from "@/lib/types";
+import { Battle, Citizen, CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from "@/lib/types";
 import { useParticles } from "@/lib/hooks/useParticles";
+import { RegionSelector } from "@/components/game/RegionSelector";
 
 export default function BattlesPage() {
     const {
@@ -22,10 +23,14 @@ export default function BattlesPage() {
         fetchRoundHistory,
         fight,
         declareWar,
-        fetchDashboardData
+        fetchDashboardData,
+        endActiveRound,
+        startNextRound
     } = useGameStore();
 
     const [selectedBattleId, setSelectedBattleId] = useState<string | null>(null);
+    const [showRegionSelector, setShowRegionSelector] = useState(false);
+    const [targetCountryForWar, setTargetCountryForWar] = useState<number | null>(null);
     const [isFighting, setIsFighting] = useState(false);
     const [activeTab, setActiveTab] = useState<'battle' | 'history'>('battle');
     const [lastHit, setLastHit] = useState<{ damage: number, side: string } | null>(null);
@@ -395,17 +400,50 @@ export default function BattlesPage() {
                                     <div className="p-3 bg-white/5 rounded border border-white/5">
                                         <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase mb-2">
                                             <span>Round_{activeBattle.currentRound}</span>
-                                            <span>Conflict_Status</span>
+                                            <span className={Date.now() < (activeBattle.roundEndTime || 0) ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}>
+                                                {Date.now() < (activeBattle.roundEndTime || 0) ? 'COMBAT_ACTIVE' : 'MOLA_PERIOD'}
+                                            </span>
                                         </div>
                                         <div className="h-2 bg-slate-900 rounded-full overflow-hidden flex border border-white/5">
-                                            <div className="h-full bg-red-600" style={{ width: `${activeBattle.wallPercentage}%` }} />
-                                            <div className="h-full bg-blue-600" style={{ width: `${100 - activeBattle.wallPercentage}%` }} />
+                                            <div className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.3)] transition-all duration-500" style={{ width: `${activeBattle.wallPercentage}%` }} />
+                                            <div className="h-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.3)] transition-all duration-500" style={{ width: `${100 - activeBattle.wallPercentage}%` }} />
                                         </div>
                                         <div className="flex justify-between mt-2 text-[9px] font-black">
-                                            <span className="text-red-500">{activeBattle.attackerPoints} PTS</span>
-                                            <span className="text-blue-500">{activeBattle.defenderPoints} PTS</span>
+                                            <div className="flex flex-col">
+                                                <span className="text-red-500">{activeBattle.attackerPoints || 0} PTS</span>
+                                                {activeBattle.attackerTop && (
+                                                    <span className="text-[7px] text-slate-500 font-mono">MVP: {activeBattle.attackerTop.addr.substring(0, 8)}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col text-right">
+                                                <span className="text-blue-500">{activeBattle.defenderPoints || 0} PTS</span>
+                                                {activeBattle.defenderTop && (
+                                                    <span className="text-[7px] text-slate-500 font-mono">MVP: {activeBattle.defenderTop.addr.substring(0, 8)}</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
+
+                                    {/* Mola Status / Start Next Round */}
+                                    {Date.now() >= (activeBattle.roundEndTime || 0) && activeBattle.currentRound && activeBattle.currentRound < 5 && (
+                                        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3 animate-pulse">
+                                            <div className="flex items-center gap-2 text-amber-500">
+                                                <Clock size={16} />
+                                                <span className="text-xs font-black uppercase italic">Mola Period (1 Hour Break)</span>
+                                            </div>
+                                            <p className="text-[9px] text-amber-200/60 leading-tight">
+                                                The round has ended. There is a 1-hour tactical break before the next round begins.
+                                            </p>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => startNextRound(activeBattle.id)}
+                                                className="w-full h-8 bg-amber-600 hover:bg-amber-500 text-[10px] font-black uppercase tracking-widest"
+                                            >
+                                                Force Start Next Round
+                                            </Button>
+                                        </div>
+                                    )}
+
                                     <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-hide">
                                         {activeBattles.map(b => (
                                             <div key={b.id} onClick={() => setSelectedBattleId(b.id)} className={`p-3 rounded border border-white/5 transition-all cursor-pointer ${selectedBattleId === b.id ? 'bg-cyan-500/10 border-cyan-500' : 'bg-black/20 hover:border-white/20'}`}>
@@ -468,60 +506,66 @@ export default function BattlesPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                As a leader, you have the authority to initiate military operations. Training wars help operatives gain XP without territorial loss, while real wars can expand your country's borders.
+                                As a leader, you have the authority to initiate military operations. Select a target country to view available regions for invasion or liberation.
                             </p>
                             <div className="flex flex-col gap-4 max-w-sm">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Region ID</label>
-                                    <input
-                                        type="number"
-                                        value={warRegionId}
-                                        onChange={(e) => setWarRegionId(e.target.value)}
-                                        placeholder="Enter Region ID (e.g. 1-100)"
-                                        className="w-full bg-black/40 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:border-red-500/50 transition-colors"
-                                    />
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Country</label>
+                                    <select
+                                        className="w-full bg-black/40 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:border-red-500/50 transition-colors text-white"
+                                        onChange={(e) => setTargetCountryForWar(Number(e.target.value))}
+                                        value={targetCountryForWar || ''}
+                                    >
+                                        <option value="">Select Country</option>
+                                        {Object.entries(COUNTRY_IDS)
+                                            .filter(([code, id]) => (id as number) !== user?.countryId)
+                                            .map(([code, id]) => (
+                                                <option key={id as number} value={id as number}>{COUNTRY_CONFIG[code as CountryId].name}</option>
+                                            ))}
+                                    </select>
                                 </div>
-                                <div className="flex items-center gap-6">
-                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                        <input
-                                            type="radio"
-                                            checked={isTrainingWar}
-                                            onChange={() => setIsTrainingWar(true)}
-                                            className="w-4 h-4 accent-red-500"
-                                        />
-                                        <span className={`text-xs font-bold uppercase tracking-wider ${isTrainingWar ? 'text-red-400' : 'text-slate-500 group-hover:text-slate-300'}`}>Training Grounds</span>
-                                    </label>
-                                    <label className="flex items-center gap-3 cursor-pointer group">
-                                        <input
-                                            type="radio"
-                                            checked={!isTrainingWar}
-                                            onChange={() => setIsTrainingWar(false)}
-                                            className="w-4 h-4 accent-red-500"
-                                        />
-                                        <span className={`text-xs font-bold uppercase tracking-wider ${!isTrainingWar ? 'text-red-400' : 'text-slate-500 group-hover:text-slate-300'}`}>Real Warfare</span>
-                                    </label>
-                                </div>
+
                                 <Button
                                     onClick={() => {
-                                        if (!warRegionId) { alert("Please enter a Region ID"); return; }
-                                        declareWar(Number(warRegionId), isTrainingWar);
+                                        if (!targetCountryForWar) return;
+                                        setShowRegionSelector(true);
                                     }}
-                                    className="h-12 bg-red-600 hover:bg-red-500 text-white font-black italic tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.3)]"
+                                    disabled={!targetCountryForWar}
+                                    className="h-12 bg-red-600 hover:bg-red-500 text-white font-black italic tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-30"
                                 >
-                                    AUTHORIZE OPERATION
+                                    OPEN WAR ROOM
                                 </Button>
                             </div>
                         </div>
 
                         <div className="bg-black/20 rounded-xl p-4 border border-white/5 space-y-3">
-                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Council Log</h4>
-                            <div className="space-y-2 font-mono text-[9px]">
-                                <div className="text-slate-600">[SYSLOG]: Awaiting presidential directive...</div>
-                                <div className="text-slate-600">[SYSLOG]: All systems standing by.</div>
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Strategic Intelligence</h4>
+                            <div className="space-y-4 font-mono text-[9px]">
+                                <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
+                                    <p className="text-red-400 font-bold mb-1 uppercase">Declaration Cost:</p>
+                                    <p className="text-slate-300">1,000,000 CRED from National Treasury</p>
+                                </div>
+                                <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-lg">
+                                    <p className="text-cyan-400 font-bold mb-1 uppercase">Operation Flow:</p>
+                                    <p className="text-slate-300 italic">Declare War → Region Selection → Battle Phase (5 Rounds) → Mola System Enabled</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <AnimatePresence>
+                    {showRegionSelector && (
+                        <RegionSelector
+                            targetCountryId={targetCountryForWar || 0}
+                            onClose={() => setShowRegionSelector(false)}
+                            onSelect={(id) => {
+                                // Handled internally by RegionSelector now
+                                setShowRegionSelector(false);
+                            }}
+                        />
+                    )}
+                </AnimatePresence>
 
                 <div className="bg-slate-950/40 backdrop-blur-md p-4 rounded-xl border border-cyan-500/20 shadow-2xl">
                     <MilitaryUnitManager />

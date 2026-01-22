@@ -8,25 +8,54 @@ export interface GovernanceSlice {
     electionCandidates: Record<number, ElectionCandidate[]>;
     treasuryBalance: Record<number, number>;
     isCongressMember: boolean;
+    congressElectionData: Record<number, { active: boolean, endTime: number, candidates: string[], votes: number[] }>;
+
+    claimableSalary: Record<string, number>;
+    countryGovernance: Record<number, { minWage: number, maxCongress: number, presSalary: number, congSalary: number }>;
+    warStatus: Record<number, number[]>;
+
+    // War Mechanics 2.0
+    isLandless: boolean;
+    reclaimableRegions: number[];
+    topDonors: Record<number, { addr: string, amount: number }[]>;
 
     fetchCountryData: (countryId: number) => Promise<void>;
     fetchTreasuryBalance: (countryId: number) => Promise<void>;
     fetchProposals: () => Promise<void>;
     fetchCandidates: (countryId: number) => Promise<void>;
     checkCongressMembership: (countryId: number) => Promise<void>;
+    fetchCongressElectionData: (countryId: number) => Promise<void>;
+    fetchClaimableSalary: (addr: string, countryId: number) => Promise<void>;
+    fetchCountryGovernance: (countryId: number) => Promise<void>;
+    fetchWarStatus: (countryId: number) => Promise<void>;
+    fetchTopDonors: (countryId: number) => Promise<void>;
+
+    // War Mechanics 2.0 Actions
+    fetchLandlessStatus: (countryId: number) => Promise<void>;
+    fetchReclaimableRegions: (countryId: number) => Promise<void>;
+    declareWar: (countryId: number, targetCountryId: number, regionId: number) => Promise<void>;
+    startResistance: (regionId: number) => Promise<void>;
 
     registerAsCandidate: (countryId: number) => Promise<void>;
     voteForCandidate: (countryId: number, candidateIdx: number) => Promise<void>;
     createProposal: (countryId: number, type: number, data: number[]) => Promise<void>;
     voteOnProposal: (proposalId: number, support: boolean) => Promise<void>;
+    finalizeProposal: (proposalId: number) => Promise<void>;
+    claimSalary: (countryId: number) => Promise<void>;
+    donateToTreasury: (countryId: number, amount: number) => Promise<void>;
     initializeGovernance: () => Promise<void>;
+
+    // Congress Election Cycle
+    startCongressElection: (countryId: number) => Promise<void>;
+    registerCongressCandidate: (countryId: number) => Promise<void>;
+    voteCongress: (countryId: number, candidateIdx: number) => Promise<void>;
+    endCongressElection: (countryId: number) => Promise<void>;
 
     // Admin Functions
     startElection: (countryId: number) => Promise<void>;
     endElection: (countryId: number) => Promise<void>;
     appointCongress: (countryId: number, members: string[]) => Promise<void>;
     appointPresident: (countryId: number, president: string) => Promise<void>;
-    initiateWarDeclaration: (countryId: number, targetCountryId: number) => Promise<void>;
     initiateImpeachment: (countryId: number) => Promise<void>;
     executiveDecree: (countryId: number, taxType: number, newRate: number) => Promise<void>;
 }
@@ -37,6 +66,13 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
     electionCandidates: {},
     treasuryBalance: {},
     isCongressMember: false,
+    claimableSalary: {},
+    countryGovernance: {},
+    warStatus: {},
+    congressElectionData: {},
+    isLandless: false,
+    reclaimableRegions: [],
+    topDonors: {},
 
     fetchCountryData: async (countryId: number) => {
         try {
@@ -69,10 +105,144 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
         if (!user || !user.address) return;
         try {
             const { ContractService } = await import('../contract-service');
-            const isMember = await (ContractService as any).checkCongressMember(user.address, countryId);
+            const isMember = await (ContractService as any).isCongressMember(user.address, countryId);
             set({ isCongressMember: !!isMember });
         } catch (e) {
             console.error("Store: Failed to check congress membership", e);
+        }
+    },
+
+    fetchCongressElectionData: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const data = await (ContractService as any).getCongressElectionData(countryId);
+            if (data) {
+                set(state => ({
+                    congressElectionData: {
+                        ...state.congressElectionData,
+                        [countryId]: {
+                            active: !!data.active,
+                            endTime: Number(data.endTime),
+                            candidates: data.candidates || [],
+                            votes: (data.votes || []).map(Number)
+                        }
+                    }
+                }));
+            }
+        } catch (e) {
+            console.error("Store: Failed to fetch congress election data", e);
+        }
+    },
+
+    fetchClaimableSalary: async (addr: string, countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const amount = await (ContractService as any).getClaimableSalary(addr, countryId);
+            set(state => ({
+                claimableSalary: { ...state.claimableSalary, [`${addr}-${countryId}`]: Number(amount) }
+            }));
+        } catch (e) {
+            console.error("Store: Failed to fetch claimable salary", e);
+        }
+    },
+
+    fetchCountryGovernance: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const data = await (ContractService as any).getCountryGovernanceData(countryId);
+            if (data) {
+                set(state => ({
+                    countryGovernance: {
+                        ...state.countryGovernance,
+                        [countryId]: {
+                            minWage: Number(data.minWage),
+                            maxCongress: Number(data.maxCongress),
+                            presSalary: Number(data.presSalary),
+                            congSalary: Number(data.congSalary)
+                        }
+                    }
+                }));
+            }
+        } catch (e) {
+            console.error("Store: Failed to fetch country governance", e);
+        }
+    },
+
+    fetchWarStatus: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const status = await (ContractService as any).getWarStatus(countryId);
+            if (status) {
+                // Ensure status is an array to avoid map errors
+                const statusArray = Array.isArray(status) ? status : [status];
+                set(state => ({
+                    warStatus: { ...state.warStatus, [countryId]: statusArray.map(Number) }
+                }));
+            }
+        } catch (e) {
+            console.error("Store: Failed to fetch war status", e);
+        }
+    },
+
+    fetchTopDonors: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const donors = await (ContractService as any).getTopDonors(countryId);
+            set(state => ({
+                topDonors: { ...state.topDonors, [countryId]: donors }
+            }));
+        } catch (e) {
+            console.error("Store: Failed to fetch top donors", e);
+        }
+    },
+
+    fetchLandlessStatus: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const isLandless = await ContractService.isCountryLandless(countryId);
+            set({ isLandless });
+        } catch (e) {
+            console.error("Store: Failed to fetch landless status", e);
+        }
+    },
+
+    fetchReclaimableRegions: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const regions = await ContractService.getReclaimableRegions(countryId);
+            set({ reclaimableRegions: regions.map(Number) });
+        } catch (e) {
+            console.error("Store: Failed to fetch reclaimable regions", e);
+        }
+    },
+
+    declareWar: async (countryId, targetCountryId, regionId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.declareWar(countryId, targetCountryId, regionId);
+            if (tx) {
+                await get().idsAlert("War declared!", "Strategic Command", "warning");
+                setTimeout(() => get().fetchCountryData(countryId), 3000);
+            }
+        } catch (e) {
+            console.error("War declaring failed:", e);
+            await get().idsAlert("Operation aborted.", "Command Error", "error");
+        }
+    },
+
+    startResistance: async (regionId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await ContractService.startResistance(regionId);
+            if (tx) {
+                await get().idsAlert("Resistance war started!", "Freedom Fighters", "warning");
+                const { user } = get();
+                if (user?.countryId) {
+                    setTimeout(() => get().fetchLandlessStatus(user.countryId!), 3000);
+                }
+            }
+        } catch (e) {
+            console.error("Resistance start failed:", e);
         }
     },
 
@@ -170,6 +340,105 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
         }
     },
 
+    finalizeProposal: async (proposalId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).finalizeProposal(proposalId);
+            if (tx) {
+                await get().idsAlert("Proposal finalized and executed!", "Congress Registry", "success");
+                setTimeout(() => get().fetchProposals(), 3000);
+            }
+        } catch (e) {
+            console.error("Proposal finalization failed:", e);
+        }
+    },
+
+    claimSalary: async (countryId) => {
+        const { user } = get();
+        if (!user || !user.address) return;
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).claimSalary(countryId);
+            if (tx) {
+                await get().idsAlert("Salary claimed successfully!", "National Treasury", "success");
+                setTimeout(() => {
+                    get().fetchClaimableSalary(user.address, countryId);
+                    get().fetchDashboardData();
+                }, 3000);
+            }
+        } catch (e) {
+            console.error("Salary claim failed:", e);
+        }
+    },
+
+    donateToTreasury: async (countryId, amount) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).donateToTreasury(countryId, amount);
+            if (tx) {
+                await get().idsAlert("Thank you for your donation!", "National Treasury", "success");
+                setTimeout(() => {
+                    get().fetchTreasuryBalance(countryId);
+                    get().fetchTopDonors(countryId);
+                }, 3000);
+            }
+        } catch (e) {
+            console.error("Donation failed:", e);
+        }
+    },
+
+    startCongressElection: async (countryId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).startCongressElection(countryId);
+            if (tx) {
+                await get().idsAlert("Congress election started!", "System", "success");
+                setTimeout(() => get().fetchCountryData(countryId), 3000);
+            }
+        } catch (e) {
+            console.error("Congress election start failed:", e);
+        }
+    },
+
+    registerCongressCandidate: async (countryId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).registerCongressCandidate(countryId);
+            if (tx) {
+                await get().idsAlert("Congress candidacy active!", "System", "success");
+                setTimeout(() => get().fetchCountryData(countryId), 3000);
+            }
+        } catch (e) {
+            console.error("Congress candidacy failed:", e);
+        }
+    },
+
+    voteCongress: async (countryId, candidateIdx) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).voteCongress(countryId, candidateIdx);
+            if (tx) {
+                await get().idsAlert("Vote for Congress casted!", "System", "success");
+                setTimeout(() => get().fetchCountryData(countryId), 3000);
+            }
+        } catch (e) {
+            console.error("Congress voting failed:", e);
+        }
+    },
+
+    endCongressElection: async (countryId) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const tx = await (ContractService as any).endCongressElection(countryId);
+            if (tx) {
+                await get().idsAlert("Congress election ended!", "System", "success");
+                setTimeout(() => get().fetchCountryData(countryId), 3000);
+            }
+        } catch (e) {
+            console.error("Congress election end failed:", e);
+        }
+    },
+
     initializeGovernance: async () => {
         try {
             const { ContractService } = await import('../contract-service');
@@ -251,19 +520,6 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
         }
     },
 
-    initiateWarDeclaration: async (countryId, targetCountryId) => {
-        try {
-            const { ContractService } = await import('../contract-service');
-            const tx = await (ContractService as any).initiateWarDeclaration(countryId, targetCountryId);
-            if (tx) {
-                await get().idsAlert("War declaration initiated!", "Strategic Command", "warning");
-                setTimeout(() => get().fetchCountryData(countryId), 3000);
-            }
-        } catch (e) {
-            console.error("War declaration failed:", e);
-            await get().idsAlert("Operation aborted: Check authorization or funds.", "Command Error", "error");
-        }
-    },
 
     initiateImpeachment: async (countryId) => {
         try {

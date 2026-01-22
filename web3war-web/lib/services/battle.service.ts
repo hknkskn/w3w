@@ -188,18 +188,23 @@ export const BattleService = {
         );
     },
 
-    declareWar: async (regionId: number, attackerCountry: number, isTraining: boolean): Promise<string> => {
+    startNextRound: async (battleId: number): Promise<string> => {
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.BATTLE.split('::')[0],
             WE3WAR_MODULES.BATTLE.split('::')[1],
-            "declare_war",
+            "start_next_round",
             [],
-            [
-                Array.from(BCS.bcsSerializeUint64(regionId)),
-                Array.from(BCS.bcsSerializeU8(attackerCountry)),
-                Array.from(BCS.bcsSerializeBool(isTraining))
-            ]
+            [Array.from(BCS.bcsSerializeUint64(battleId))]
         );
+    },
+
+    hasActiveBattleForRegion: async (regionId: number): Promise<boolean> => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::has_active_battle_for_region`, [], [String(regionId)]);
+            return result?.[0] === true;
+        } catch (e) {
+            return false;
+        }
     },
 
     endBattle: async (battleId: number): Promise<string> => {
@@ -207,6 +212,31 @@ export const BattleService = {
             WE3WAR_MODULES.BATTLE.split('::')[0],
             WE3WAR_MODULES.BATTLE.split('::')[1],
             "end_battle",
+            [],
+            [Array.from(BCS.bcsSerializeUint64(battleId))]
+        );
+    },
+
+    // --- Admin Functions ---
+
+    adminEndBattle: async (battleId: number, winnerSide: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "admin_end_battle",
+            [],
+            [
+                Array.from(BCS.bcsSerializeUint64(battleId)),
+                Array.from(BCS.bcsSerializeU8(winnerSide))
+            ]
+        );
+    },
+
+    adminCancelBattle: async (battleId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.BATTLE.split('::')[0],
+            WE3WAR_MODULES.BATTLE.split('::')[1],
+            "admin_cancel_battle",
             [],
             [Array.from(BCS.bcsSerializeUint64(battleId))]
         );
@@ -224,7 +254,7 @@ export const BattleService = {
 
     getBattleInfo: async (battleId: number) => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_info`, [], [battleId]);
+            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_info`, [], [String(battleId)]);
             return result?.result?.[0] || result?.[0];
         } catch (e) {
             console.error("Failed to fetch battle info:", e);
@@ -234,7 +264,7 @@ export const BattleService = {
 
     getBattleHistory: async (battleId: number) => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_history`, [], [battleId]);
+            const result = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_history`, [], [String(battleId)]);
             return result?.result?.[0] || result?.[0] || [];
         } catch (e) {
             return [];
@@ -252,7 +282,7 @@ export const BattleService = {
 
     getBattleRoundDetails: async (battleId: number) => {
         try {
-            const data = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_round_details`, [], [battleId]);
+            const data = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_battle_round_details`, [], [String(battleId)]);
             if (!data || !Array.isArray(data)) return null;
             return {
                 currentRound: Number(data[0]),
@@ -273,7 +303,7 @@ export const BattleService = {
 
     getRoundData: async (battleId: number) => {
         try {
-            const data = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_round_data`, [], [battleId]);
+            const data = await BaseService.view(`${WE3WAR_MODULES.BATTLE}::get_round_data`, [], [String(battleId)]);
             if (!data || !Array.isArray(data)) return null;
             return {
                 currentRound: Number(data[0]),

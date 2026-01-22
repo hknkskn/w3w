@@ -168,7 +168,7 @@ module web3war::marketplace {
         let seller_addr: address;
         let total_price: u64;
         let tax: u64;
-        let listing_country: u8;
+        let _listing_country: u8;
         let item_cat: u8;
         let item_qual: u8;
         let original_id: u64;
@@ -185,7 +185,7 @@ module web3war::marketplace {
             tax = (total_price * (vat_rate as u64)) / 100;
             
             seller_addr = listing.seller;
-            listing_country = listing.country;
+            _listing_country = listing.country;
             item_cat = listing.item_type.category;
             item_qual = listing.item_type.quality;
             original_id = listing.original_item_id;

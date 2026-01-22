@@ -12,6 +12,7 @@ module web3war::company {
     use web3war::citizen;
     use web3war::territory;
     use web3war::admin;
+    use web3war::governance;
 
     // ============================================
     // ERRORS
@@ -214,7 +215,7 @@ module web3war::company {
         company.balance = company.balance + amount;
     }
     
-    /// Update/Post job offer
+    /// Update/Post job offer (Enforces Minimum Wage)
     public entry fun post_job_offer(
         account: &signer, 
         company_id: u64, 
@@ -226,6 +227,10 @@ module web3war::company {
         let company = find_company_mut(&mut reg.companies, company_id);
         
         assert!(company.owner == owner, E_NOT_OWNER);
+        
+        // Minimum Wage Check
+        let (min_wage, _, _, _) = governance::get_country_governance_data(web3war::territory::get_region_country(company.region_id));
+        assert!(salary >= min_wage, 105); // E_BELOW_MIN_WAGE
         
         company.job_offer = JobOffer {
             active: positions > 0,

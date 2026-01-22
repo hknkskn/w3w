@@ -22,14 +22,15 @@ export const PoliticsService = {
 
     getProposals: async () => {
         try {
-            const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_proposals`, [], []);
-            return result?.result?.[0] || result?.[0] || [];
+            const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_all_proposals`, [], []);
+            return result?.[0] || [];
         } catch (e) {
+            console.error("Failed to fetch proposals", e);
             return [];
         }
     },
 
-    checkCongressMember: async (address: string, countryId: number) => {
+    isCongressMember: async (address: string, countryId: number) => {
         try {
             const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::is_congress_member`, [], [address, countryId]);
             const val = result?.result?.[0] || result?.[0];
@@ -110,7 +111,7 @@ export const PoliticsService = {
             "vote_proposal",
             [],
             [
-                Array.from(BCS.bcsSerializeUint64(proposalId)),
+                Array.from(BCS.bcsSerializeUint64(BigInt(proposalId))),
                 Array.from(BCS.bcsSerializeBool(approve))
             ]
         );
@@ -192,7 +193,118 @@ export const PoliticsService = {
         );
     },
 
-    initiateWarDeclaration: async (countryId: number, targetCountryId: number): Promise<string> => {
+    getCountryGovernanceData: async (countryId: number) => {
+        try {
+            const data = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_country_governance_data`, [], [countryId]);
+            if (!data || !Array.isArray(data)) return null;
+            return {
+                minWage: Number(data[0]),
+                maxCongress: Number(data[1]),
+                presSalary: Number(data[2]),
+                congSalary: Number(data[3])
+            };
+        } catch (e) {
+            return null;
+        }
+    },
+
+    getWarStatus: async (countryId: number) => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_war_status`, [], [countryId]);
+            return result?.result?.[0] || result?.[0] || [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    getClaimableSalary: async (addr: string, countryId: number) => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_claimable_salary`, [], [addr, countryId]);
+            return Number(result?.result?.[0] || result?.[0] || 0);
+        } catch (e) {
+            return 0;
+        }
+    },
+
+    getCongressElectionData: async (countryId: number) => {
+        try {
+            const data = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_congress_election_data`, [], [countryId]);
+            if (!data || !Array.isArray(data)) return null;
+            return {
+                active: data[0] === true,
+                endTime: Number(data[1]),
+                candidates: data[2] || [],
+                votes: data[3] || []
+            };
+        } catch (e) {
+            return null;
+        }
+    },
+
+    claimSalary: async (countryId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "claim_salary",
+            [],
+            [Array.from(BCS.bcsSerializeU8(countryId))]
+        );
+    },
+
+    startCongressElection: async (countryId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "start_congress_election",
+            [],
+            [Array.from(BCS.bcsSerializeU8(countryId))]
+        );
+    },
+
+    registerCongressCandidate: async (countryId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "register_congress_candidate",
+            [],
+            [Array.from(BCS.bcsSerializeU8(countryId))]
+        );
+    },
+
+    voteCongress: async (countryId: number, candidateIdx: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "vote_congress",
+            [],
+            [
+                Array.from(BCS.bcsSerializeU8(countryId)),
+                Array.from(BCS.bcsSerializeUint64(candidateIdx))
+            ]
+        );
+    },
+
+    endCongressElection: async (countryId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "end_congress_election",
+            [],
+            [Array.from(BCS.bcsSerializeU8(countryId))]
+        );
+    },
+
+    finalizeProposal: async (proposalId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "finalize_proposal",
+            [],
+            [Array.from(BCS.bcsSerializeUint64(BigInt(proposalId)))]
+        );
+    },
+
+    declareWar: async (countryId: number, targetCountryId: number, targetRegionId: number): Promise<string> => {
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.GOVERNANCE.split('::')[0],
             WE3WAR_MODULES.GOVERNANCE.split('::')[1],
@@ -200,12 +312,59 @@ export const PoliticsService = {
             [],
             [
                 Array.from(BCS.bcsSerializeU8(countryId)),
-                Array.from(BCS.bcsSerializeU8(targetCountryId))
+                Array.from(BCS.bcsSerializeU8(targetCountryId)),
+                Array.from(BCS.bcsSerializeUint64(BigInt(targetRegionId)))
             ]
         );
     },
 
-    initiateImpeachment: async (countryId: number): Promise<string> => {
+    startResistance: async (targetRegionId: number): Promise<string> => {
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.GOVERNANCE.split('::')[0],
+            WE3WAR_MODULES.GOVERNANCE.split('::')[1],
+            "start_resistance",
+            [],
+            [Array.from(BCS.bcsSerializeUint64(BigInt(targetRegionId)))]
+        );
+    },
+
+    isCountryLandless: async (countryId: number): Promise<boolean> => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.TERRITORY}::is_country_landless`, [], [countryId]);
+            return result?.[0] === true;
+        } catch (e) {
+            return false;
+        }
+    },
+
+    getReclaimableRegions: async (countryId: number): Promise<number[]> => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.TERRITORY}::get_reclaimable_regions`, [], [countryId]);
+            return result?.[0] || [];
+        } catch (e) {
+            return [];
+        }
+    },
+
+    getCountryTerritoryCount: async (countryId: number): Promise<number> => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.TERRITORY}::get_country_territory_count`, [], [countryId]);
+            return Number(result?.[0] || 0);
+        } catch (e) {
+            return 0;
+        }
+    },
+
+    initiateImpeachment: async (countryId: number) => {
+        try {
+            const tx = await (PoliticsService as any).sendDeclareImpeachment(countryId); // Fixed reference
+            return tx;
+        } catch (e) {
+            throw e;
+        }
+    },
+
+    sendDeclareImpeachment: async (countryId: number): Promise<string> => {
         return await BaseService.sendTransaction(
             WE3WAR_MODULES.GOVERNANCE.split('::')[0],
             WE3WAR_MODULES.GOVERNANCE.split('::')[1],
@@ -227,5 +386,29 @@ export const PoliticsService = {
                 Array.from(BCS.bcsSerializeU8(newRate))
             ]
         );
+    },
+
+    donateToTreasury: async (countryId: number, amount: number): Promise<string> => {
+        // CRED has 2 decimals, scale by 100
+        const rawAmount = BigInt(Math.floor(amount * 100));
+        return await BaseService.sendTransaction(
+            WE3WAR_MODULES.TREASURY.split('::')[0],
+            WE3WAR_MODULES.TREASURY.split('::')[1],
+            "donate_to_treasury",
+            [],
+            [
+                Array.from(BCS.bcsSerializeU8(countryId)),
+                Array.from(BCS.bcsSerializeUint64(rawAmount))
+            ]
+        );
+    },
+
+    getTopDonors: async (countryId: number) => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.TREASURY}::get_top_donors`, [], [countryId]);
+            return result?.[0] || [];
+        } catch (e) {
+            return [];
+        }
     }
 };

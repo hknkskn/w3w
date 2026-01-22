@@ -17,7 +17,8 @@ import {
     Factory,
     Newspaper,
     Briefcase,
-    Landmark
+    Landmark,
+    Trophy
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TacticalDropdown } from './TacticalDropdown';
@@ -45,12 +46,13 @@ export function TopNavigation() {
             {/* 2. My Places Dropdown */}
             <TacticalDropdown
                 label="My Places"
-                icon={Flag}
-                badge={1}
+                icon={Building2}
+                active={pathname === '/training' || pathname === '/industrial' || pathname === '/companies' || pathname === '/newspaper'}
                 items={[
-                    { label: 'Training Center', href: '/training', customIcon: "/icons/Training.webp", description: 'Strength drills', badge: 1, color: 'text-amber-400' },
-                    { label: 'Industrial Complex', href: '/industrial', customIcon: "/icons/industrial.webp", description: 'Manufacturing & Workforce' },
-                    { label: 'Newspaper', href: '/newspaper', icon: Newspaper, description: 'Media hub' },
+                    { label: 'Training Grounds', href: '/training', customIcon: "/icons/Training.webp", description: 'STRENGTH DRILLS', badge: 1, color: 'text-amber-400' },
+                    { label: 'Industrial Center', href: '/industrial', customIcon: "/icons/industrial.webp", description: 'RESOURCE PRODUCTION' },
+                    { label: 'Companies', href: '/companies', icon: Briefcase, description: 'BUSINESS HUB' },
+                    { label: 'Newspaper', href: '/newspaper', icon: Newspaper, description: 'DAILY INTEL' },
                 ]}
             />
 
@@ -58,11 +60,11 @@ export function TopNavigation() {
             <TacticalDropdown
                 label="Wars"
                 icon={Swords}
-                active={pathname === '/battles' || pathname === '/map'}
+                active={pathname === '/wars' || pathname === '/map' || pathname === '/rewards'}
                 items={[
-                    { label: 'Battlefields', href: '/battles', icon: Swords, description: 'Active conflicts' },
-                    { label: 'World Map', href: '/map', customIcon: "/icons/Worldmap.webp", description: 'Global operations' },
-                    { label: 'Military Units', href: '/battles', icon: Briefcase, description: 'Squadron data' },
+                    { label: 'Wars & Campaigns', href: '/wars', icon: Swords, description: 'ACTIVE FRONTS' },
+                    { label: 'World Map', href: '/map', customIcon: "/icons/Worldmap.webp", description: 'GLOBAL OPERATIONS' },
+                    { label: 'Reward Center', href: '/rewards', icon: Trophy, description: 'MILITARY BONUSES' },
                 ]}
             />
 
@@ -70,11 +72,10 @@ export function TopNavigation() {
             <TacticalDropdown
                 label="Marketplace"
                 icon={ShoppingBag}
-                active={pathname === '/market'}
+                active={pathname === '/market' || pathname === '/inventory'}
                 items={[
-                    { label: 'Market', href: '/market', icon: ShoppingBag, description: 'Buy & Sell items' },
-                    { label: 'Inventory', customIcon: "/icons/inventory.webp", href: '/inventory', description: 'Your equipment' },
-                    { label: 'Job Market', icon: Users, href: '/companies', description: 'Personnel hiring' },
+                    { label: 'Global Market', href: '/market', icon: ShoppingBag, description: 'TRADE GOODS' },
+                    { label: 'My Inventory', href: '/inventory', customIcon: "/icons/inventory.webp", description: 'YOUR ARSENAL' },
                 ]}
             />
 
@@ -84,9 +85,9 @@ export function TopNavigation() {
                 icon={Users}
                 active={pathname === '/politics' || pathname === '/country' || pathname === '/profile'}
                 items={[
-                    { label: 'Country Hub', href: '/country', icon: Landmark, description: 'National management' },
-                    { label: 'Politics', href: '/politics', icon: Flag, description: 'Political activity' },
-                    { label: 'Profile', href: '/profile', icon: UserCircle, description: 'Public citizen data' },
+                    { label: 'National Hub', href: '/country', icon: Landmark, description: 'NATIONAL AFFAIRS' },
+                    { label: 'Politics', href: '/politics', icon: Flag, description: 'GOVERNMENT & VOTING' },
+                    { label: 'Citizen Profile', href: '/profile', icon: UserCircle, description: 'YOUR IDENTITY' },
                 ]}
             />
 

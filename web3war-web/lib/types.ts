@@ -33,6 +33,7 @@ export interface Battle {
     attackerDamage: number;
     defenderDamage: number;
     wallPercentage: number;
+    wall?: number;
     isResistance?: boolean;
     isTraining?: boolean;
 
@@ -41,6 +42,8 @@ export interface Battle {
     attackerPoints?: number;
     defenderPoints?: number;
     roundEndTime?: number;
+    attackerTop?: RoundTopDamager;
+    defenderTop?: RoundTopDamager;
 }
 
 export interface RegionId {
@@ -211,6 +214,13 @@ export interface CountryData {
     importTax: number;
     vat: number;
     electionActive: boolean;
+
+    // Legislative data
+    minWage?: number;
+    maxCongress?: number;
+    presidentSalary?: number;
+    congressSalary?: number;
+    atWarWith?: number[];
 }
 
 export interface RoundHistory {
@@ -220,6 +230,22 @@ export interface RoundHistory {
     attackerTopInfluence: number;
     defenderTopAddr: string;
     defenderTopInfluence: number;
+}
+
+export interface PendingWarReward {
+    battle_id: string; // From u64
+    winner_country: number;
+    amount: string; // From u64
+    created_at: string; // From u64
+    claimed: boolean;
+}
+
+export interface PendingHeroReward {
+    battle_id: string; // From u64
+    round: number;
+    hero_addr: string;
+    amount: string; // From u64
+    claimed: boolean;
 }
 
 
