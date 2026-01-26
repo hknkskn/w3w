@@ -19,6 +19,7 @@ import {
     ArrowUpRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '@/lib/i18n';
 
 function formatTimeRemaining(ms: number) {
     if (ms <= 0) return 'Expired';
@@ -40,6 +41,7 @@ export function ClaimCenter() {
         user
     } = useGameStore();
 
+    const { t } = useTranslation();
     const [loading, setLoading] = useState(true);
     const [claimingId, setClaimingId] = useState<string | null>(null);
 
@@ -70,7 +72,7 @@ export function ClaimCenter() {
         return (
             <div className="flex flex-col items-center justify-center p-20 space-y-4">
                 <Medal className="w-12 h-12 text-slate-700 animate-pulse" />
-                <p className="text-slate-400 font-medium">Fetching your rewards...</p>
+                <p className="text-slate-400 font-medium">{t('rewards.fetching')}</p>
             </div>
         );
     }
@@ -82,7 +84,7 @@ export function ClaimCenter() {
                 <Card className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Game Treasury</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('rewards.game_treasury')}</p>
                             <h3 className="text-2xl font-black text-white mt-1">{(gameTreasuryBalance / 100).toLocaleString()} CRED</h3>
                         </div>
                         <div className="p-3 bg-cyan-500/10 rounded-xl">
@@ -91,16 +93,16 @@ export function ClaimCenter() {
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-500">
                         <ArrowUpRight className="w-3 h-3 text-emerald-500" />
-                        <span>Available for rewards and development</span>
+                        <span>{t('rewards.treasury_note')}</span>
                     </div>
                 </Card>
 
                 <Card className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Your Pending Rewards</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('rewards.your_pending')}</p>
                             <h3 className="text-2xl font-black text-white mt-1">
-                                {pendingHeroRewards.length} Items
+                                {t('rewards.items_count', { count: pendingHeroRewards.length })}
                             </h3>
                         </div>
                         <div className="p-3 bg-amber-500/10 rounded-xl">
@@ -109,16 +111,16 @@ export function ClaimCenter() {
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-500">
                         <Timer className="w-3 h-3 text-amber-500" />
-                        <span>30-day claim window after battle ends</span>
+                        <span>{t('rewards.claim_window')}</span>
                     </div>
                 </Card>
 
                 <Card className="p-6 bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700/50">
                     <div className="flex justify-between items-start">
                         <div>
-                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">National Spoils</p>
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t('rewards.national_spoils')}</p>
                             <h3 className="text-2xl font-black text-white mt-1">
-                                {pendingWarRewards.length} Collections
+                                {t('rewards.collections_count', { count: pendingWarRewards.length })}
                             </h3>
                         </div>
                         <div className="p-3 bg-indigo-500/10 rounded-xl">
@@ -127,7 +129,7 @@ export function ClaimCenter() {
                     </div>
                     <div className="mt-4 flex items-center gap-2 text-[10px] text-slate-500">
                         <Medal className="w-3 h-3 text-indigo-500" />
-                        <span>Authorized citizens can claim for treasury</span>
+                        <span>{t('rewards.authorized_note')}</span>
                     </div>
                 </Card>
             </div>
@@ -138,13 +140,13 @@ export function ClaimCenter() {
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 px-2">
                         <Medal className="w-5 h-5 text-amber-500" />
-                        <h2 className="text-lg font-black text-white uppercase italic">Hero Service Rewards</h2>
+                        <h2 className="text-lg font-black text-white uppercase italic">{t('rewards.hero_title')}</h2>
                     </div>
 
                     {pendingHeroRewards.length === 0 ? (
                         <div className="p-12 text-center bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
                             <Medal className="w-12 h-12 text-slate-800 mx-auto mb-4" />
-                            <p className="text-slate-500 font-medium">No hero rewards pending. Join active battles!</p>
+                            <p className="text-slate-500 font-medium">{t('rewards.no_hero')}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -165,13 +167,13 @@ export function ClaimCenter() {
                 <div className="space-y-4">
                     <div className="flex items-center gap-2 px-2">
                         <Shield className="w-5 h-5 text-indigo-500" />
-                        <h2 className="text-lg font-black text-white uppercase italic">National War Spoils</h2>
+                        <h2 className="text-lg font-black text-white uppercase italic">{t('rewards.war_title')}</h2>
                     </div>
 
                     {pendingWarRewards.length === 0 ? (
                         <div className="p-12 text-center bg-slate-900/30 rounded-2xl border border-dashed border-slate-800">
                             <Shield className="w-12 h-12 text-slate-800 mx-auto mb-4" />
-                            <p className="text-slate-500 font-medium">No national spoils currently available for collection.</p>
+                            <p className="text-slate-500 font-medium">{t('rewards.no_spoils')}</p>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -193,10 +195,9 @@ export function ClaimCenter() {
             <div className="p-6 bg-slate-900/50 rounded-2xl border border-slate-800 flex items-start gap-4">
                 <AlertCircle className="w-6 h-6 text-slate-500 shrink-0 mt-1" />
                 <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-slate-400">Important Collection Rules</h4>
+                    <h4 className="text-sm font-bold text-slate-400">{t('rewards.rules_title')}</h4>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                        Rewards must be claimed within 30 days of battle completion. Unclaimed rewards will be returned to the Game Treasury.
-                        Hero rewards are sent directly to your character's wallet. National spoils are sent to your national treasury for public projects and defense.
+                        {t('rewards.rules_desc')}
                     </p>
                 </div>
             </div>
@@ -210,6 +211,7 @@ function RewardItem({ type, data, onClaim, isClaiming }: {
     onClaim: () => void,
     isClaiming: boolean
 }) {
+    const { t } = useTranslation();
     const expiresAt = (Number(data.created_at) + (30 * 24 * 60 * 60)) * 1000;
     const isExpired = Date.now() > expiresAt;
     const timeRemaining = formatTimeRemaining(expiresAt - Date.now());
@@ -233,11 +235,11 @@ function RewardItem({ type, data, onClaim, isClaiming }: {
                     <div>
                         <div className="flex items-center gap-2">
                             <h4 className="text-sm font-black text-white uppercase italic">
-                                {type === 'hero' ? `Battle #${data.battle_id} Round ${data.round}` : `Battle #${data.battle_id} Spoils`}
+                                {type === 'hero' ? t('rewards.battle_round_label', { id: data.battle_id, round: data.round }) : t('rewards.battle_spoils_label', { id: data.battle_id })}
                             </h4>
                             {isExpired && (
                                 <span className="px-1.5 py-0.5 bg-red-500/10 text-red-500 text-[8px] font-bold rounded border border-red-500/20 uppercase tracking-tighter">
-                                    Expired
+                                    {t('rewards.lost')}
                                 </span>
                             )}
                         </div>
@@ -248,7 +250,7 @@ function RewardItem({ type, data, onClaim, isClaiming }: {
                             </div>
                             <div className="flex items-center gap-1 text-[10px] text-slate-500">
                                 <Calendar className="w-3 h-3" />
-                                <span>Expires {timeRemaining}</span>
+                                <span>{t('rewards.expires_in', { time: timeRemaining })}</span>
                             </div>
                         </div>
                     </div>
@@ -262,7 +264,7 @@ function RewardItem({ type, data, onClaim, isClaiming }: {
                         : 'bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700'
                         }`}
                 >
-                    {isClaiming ? 'Claiming...' : (isExpired ? 'Lost' : 'Claim Now')}
+                    {isClaiming ? t('rewards.claiming') : (isExpired ? t('rewards.lost') : t('rewards.claim_now'))}
                 </Button>
             </div>
 

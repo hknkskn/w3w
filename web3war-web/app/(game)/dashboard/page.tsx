@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useGameStore } from '@/lib/store';
@@ -12,14 +12,14 @@ import { InventoryWidget } from '@/components/game/InventoryWidget';
 import { AdminToolkit } from '@/components/game/AdminToolkit';
 import {
     Briefcase,
-    Flame,
     TrendingUp,
     Swords,
     Shield,
     Clock,
     Trophy,
     Target,
-    Users
+    Users,
+    AlertTriangle
 } from 'lucide-react';
 import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 import {
@@ -28,10 +28,20 @@ import {
     IDSQuickLink,
     IDSMissionIcon
 } from '@/components/ui/ids';
+import { TacticalAvatar } from '@/components/game/TacticalAvatar';
+import { AllianceService } from '@/lib/services/alliance.service';
+import { MarketService } from '@/lib/services/market.service';
+import { useTranslation } from '@/lib/i18n';
 
 export default function DashboardPage() {
-    const { user, login } = useGameStore();
+    const { user, login, facilities } = useGameStore();
+    const { t } = useTranslation();
     const [isMounted, setIsMounted] = useState(false);
+    const [pendingAlliances, setPendingAlliances] = useState<any[]>([]);
+    const [allMarketItems, setAllMarketItems] = useState<any[]>([]);
+    const [marketTrends, setMarketTrends] = useState<any[]>([]);
+    const prevPricesRef = useRef<Record<number, number>>({});
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     useEffect(() => {
         setIsMounted(true);
@@ -40,31 +50,172 @@ export default function DashboardPage() {
         }
     }, [user, login]);
 
+    const fetchDashboardIntelligence = async () => {
+        if (!user?.address) return;
+        try {
+            // 0. Load price history from storage on first run if Ref is empty
+            if (Object.keys(prevPricesRef.current).length === 0) {
+                const saved = localStorage.getItem('w3w_market_prices');
+                if (saved) prevPricesRef.current = JSON.parse(saved);
+            }
+
+            // 1. Fetch Political Alerts (MPPs)
+            const pending = await AllianceService.getMyPendingProposals(user.address);
+            setPendingAlliances(pending || []);
+
+            // 2. Fetch ALL Market Categories (Live Data)
+            const categories = [1, 2, 3, 4]; // Food, Weapon, Raw, Ticket
+            const allPromises = categories.map(cat => MarketService.getMarketListingsByCategory(cat));
+            const categoryResults = await Promise.all(allPromises);
+
+            // Normalize using the service mapper to ensure correct field names (item.id instead of item_id)
+            const allListings = categoryResults.flatMap(res => MarketService.mapToMarketListings(res));
+
+            // 3. Aggregate Lowest Prices by Item ID
+            const itemMap: Record<number, { name: string, price: number, id: number }> = {};
+
+            allListings.forEach((listing: any) => {
+                const itemId = Number(listing.item?.id);
+                const price = Number(listing.pricePerUnit);
+
+                if (!itemId || isNaN(itemId)) return;
+
+                if (!itemMap[itemId] || price < itemMap[itemId].price) {
+                    itemMap[itemId] = {
+                        id: itemId,
+                        name: listing.item?.name || `Item ${itemId}`,
+                        price: price
+                    };
+                }
+            });
+
+            // Map item IDs to readable names based on common game IDs
+            const itemNames: Record<number, string> = {
+                101: t('items.grain'), 102: t('items.iron_ore'), 103: t('items.oil'), 104: t('items.aluminum'),
+                201: t('items.food_q1'), 202: t('items.weapon_q1'), 203: t('items.flight_ticket'), 204: t('items.weapon_q2')
+            };
+
+            const items = Object.values(itemMap).map(item => {
+                const prevPrice = prevPricesRef.current[item.id];
+                let changeStr = '+0.00%';
+
+                if (prevPrice && prevPrice !== item.price) {
+                    const diff = ((item.price - prevPrice) / prevPrice) * 100;
+                    const sign = diff >= 0 ? '+' : '';
+                    changeStr = `${sign}${diff.toFixed(2)}%`;
+                }
+
+                return {
+                    ...item,
+                    name: itemNames[item.id] || item.name,
+                    change: changeStr
+                };
+            });
+
+            // Update price history for next session comparison
+            const newPriceMap: Record<number, number> = {};
+            Object.values(itemMap).forEach(item => { newPriceMap[item.id] = item.price; });
+            prevPricesRef.current = newPriceMap;
+            localStorage.setItem('w3w_market_prices', JSON.stringify(newPriceMap));
+
+            // Final fallback if market is empty - show some baseline mock data
+            if (items.length === 0) {
+                setAllMarketItems([
+                    { id: 201, name: 'Food Q1', price: 0.50, change: '+0%' },
+                    { id: 202, name: 'Weapon Q1', price: 1.25, change: '+0%' },
+                    { id: 102, name: 'Iron Ore', price: 0.18, change: '+0%' }
+                ]);
+            } else {
+                setAllMarketItems(items);
+            }
+        } catch (e) {
+            console.error("Dashboard intel failed", e);
+        }
+    };
+
+    // Rotation Logic: Every 10 seconds, move to next 3 items
+    useEffect(() => {
+        if (allMarketItems.length === 0) return;
+
+        const rotate = () => {
+            setCurrentIndex(prev => (prev + 3) % allMarketItems.length);
+        };
+
+        const timer = setInterval(rotate, 10000);
+        return () => clearInterval(timer);
+    }, [allMarketItems.length]);
+
+    // Update currently visible trends
+    useEffect(() => {
+        if (allMarketItems.length > 0) {
+            const end = currentIndex + 3;
+            let slice = allMarketItems.slice(currentIndex, end);
+
+            // Wrap around if not enough items
+            if (slice.length < 3) {
+                slice = [...slice, ...allMarketItems.slice(0, 3 - slice.length)];
+            }
+
+            setMarketTrends(slice);
+        }
+    }, [currentIndex, allMarketItems]);
+
+    useEffect(() => {
+        if (user?.address) {
+            fetchDashboardIntelligence();
+            const interval = setInterval(fetchDashboardIntelligence, 30000); // 30s
+            return () => clearInterval(interval);
+        }
+    }, [user?.address]);
+
     if (!isMounted || !user) {
         return (
             <div className="flex items-center justify-center min-h-screen text-slate-400 font-mono text-sm">
-                Initializing Command Center...
+                {t('common.loading')}
             </div>
         );
     }
 
     return (
         <div className="space-y-6">
+            {/* Political Alerts Layer */}
+            {pendingAlliances.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-amber-500/10 border-2 border-amber-500/30 rounded-xl p-4 flex items-center justify-between shadow-[0_0_20px_rgba(245,158,11,0.1)]"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-500 animate-pulse">
+                            <AlertTriangle size={20} />
+                        </div>
+                        <div>
+                            <div className="text-sm font-black text-white uppercase tracking-wider">{t('dashboard.diplomatic_emergency', {}, 'Diplomatic Emergency')}</div>
+                            <div className="text-xs text-amber-200/70">{t('dashboard.pending_proposals', { count: pendingAlliances.length }, `You have ${pendingAlliances.length} pending Alliance (MPP) proposals.`)}</div>
+                        </div>
+                    </div>
+                    <Link href="/politics">
+                        <Button size="sm" className="bg-amber-600 hover:bg-amber-500 text-white border-amber-400/20 shadow-lg">
+                            {t('dashboard.review_proposals')}
+                        </Button>
+                    </Link>
+                </motion.div>
+            )}
 
             {/* Main 3-Column Layout */}
             <div className="grid grid-cols-12 gap-6">
                 {/* Left Sidebar - Profile & Inventory */}
                 <div className="col-span-12 lg:col-span-3 space-y-6">
-                    <ProfileCard />
+                    <ProfileCard user={user} facilities={facilities} />
                     <InventoryWidget />
 
                     <IDSCard noPadding className="overflow-hidden divide-y divide-slate-700/30">
-                        <IDSQuickLink icon={<span>🏛️</span>} label="Politics Dashboard" href="/politics" hasArrow />
-                        <IDSQuickLink icon={<span>🎯</span>} label="Training Grounds" href="/training" hasArrow />
-                        <IDSQuickLink icon={<Swords size={14} />} label="Wars & Campaigns" href="/wars" hasArrow />
-                        <IDSQuickLink icon={<span>🏗️</span>} label="Industrial Center" href="/industrial" hasArrow />
-                        <IDSQuickLink icon={<Trophy size={14} />} label="Reward Center" href="/rewards" hasArrow />
-                        <IDSQuickLink icon={<Briefcase size={14} />} label="Companies" href="/companies" hasArrow />
+                        <IDSQuickLink icon={<span>🏛️</span>} label={t('nav.politics')} href="/politics" hasArrow />
+                        <IDSQuickLink icon={<span>🎯</span>} label={t('nav.training_grounds')} href="/training" hasArrow />
+                        <IDSQuickLink icon={<Swords size={14} />} label={t('nav.wars_campaigns')} href="/wars" hasArrow />
+                        <IDSQuickLink icon={<span>🏗️</span>} label={t('nav.industrial_center')} href="/industrial" hasArrow />
+                        <IDSQuickLink icon={<Trophy size={14} />} label={t('nav.reward_center')} href="/rewards" hasArrow />
+                        <IDSQuickLink icon={<Briefcase size={14} />} label={t('nav.companies')} href="/companies" hasArrow />
                     </IDSCard>
 
                     <AdminToolkit />
@@ -81,28 +232,34 @@ export default function DashboardPage() {
 
                 {/* Right Column - Social & Community */}
                 <div className="col-span-12 lg:col-span-3 space-y-6">
-                    <SocialFeed />
-
-                    <IDSCard>
+                    <IDSCard className="bg-slate-900/40 border-slate-700/50 shadow-inner">
                         <IDSLabel color="bright" size="sm" className="mb-4 flex items-center gap-2">
-                            <img src="/icons/markettrend.webp" className="w-4 h-4 object-contain" alt="" />
-                            Market Trends
+                            <TrendingUp size={14} className="text-cyan-400" />
+                            {t('dashboard.market_intelligence')}
                         </IDSLabel>
-                        <div className="space-y-3">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400">Food Q1</span>
-                                <span className="text-emerald-400 font-bold">▲ 0.45 CRED</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400">Weapon Q1</span>
-                                <span className="text-red-400 font-bold">▼ 1.20 CRED</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-400">Iron Ore</span>
-                                <span className="text-emerald-400 font-bold">▲ 0.15 CRED</span>
-                            </div>
+                        <div className="space-y-4">
+                            {(marketTrends.length > 0 ? marketTrends : [
+                                { name: 'Food Q1', price: 0.45, change: '+0%' },
+                                { name: 'Weapon Q1', price: 1.20, change: '+0%' },
+                                { name: 'Iron Ore', price: 0.15, change: '+0%' }
+                            ]).map((trend, i) => (
+                                <div key={i} className="flex justify-between items-center group">
+                                    <span className="text-xs text-slate-400 group-hover:text-slate-200 transition-colors">{trend.name}</span>
+                                    <div className="text-right">
+                                        <div className="text-xs font-mono font-bold text-white">{trend.price.toFixed(2)} CRED</div>
+                                        <div className={`text-right text-[10px] font-black ${trend.change.startsWith('+') ? 'text-emerald-500' : 'text-red-500'}`}>
+                                            {trend.change}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
+                        <Button variant="ghost" size="sm" className="w-full mt-4 text-[10px] uppercase tracking-tighter text-slate-500 hover:text-cyan-400">
+                            {t('dashboard.full_analysis')}
+                        </Button>
                     </IDSCard>
+
+                    <SocialFeed />
                 </div>
 
             </div>
@@ -110,15 +267,14 @@ export default function DashboardPage() {
     );
 }
 
-function ProfileCard() {
-    const { user, facilities } = useGameStore();
+function ProfileCard({ user, facilities }: { user: any, facilities: any[] }) {
+    const { t } = useTranslation();
     if (!user) return null;
 
     const energy = user.energy || 0;
     const maxEnergy = user.maxEnergy || 200;
     const energyPercent = maxEnergy > 0 ? (energy / maxEnergy) * 100 : 0;
 
-    // Reverse map countryId to code for config
     const countryCode = (Object.keys(COUNTRY_IDS) as CountryId[]).find(k => COUNTRY_IDS[k] === user.countryId) || 'TR' as CountryId;
     const countryConfig = COUNTRY_CONFIG[countryCode];
 
@@ -127,10 +283,13 @@ function ProfileCard() {
             {/* Header with Avatar */}
             <div className="relative bg-gradient-to-br from-slate-800 to-slate-950 p-4">
                 <div className="flex items-center gap-4">
-                    {/* Avatar with Country Badge */}
                     <div className="relative">
-                        <div className="w-16 h-16 bg-slate-950 rounded-xl border-2 border-slate-700/50 overflow-hidden shadow-xl">
-                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="Avatar" className="w-full h-full" />
+                        <div className="w-16 h-16 bg-slate-950 rounded-2xl border-2 border-slate-700/50 overflow-hidden shadow-xl flex items-center justify-center">
+                            <TacticalAvatar
+                                seed={user.avatarSeed || user.username}
+                                size={64}
+                                showBackground={false}
+                            />
                         </div>
                         {countryConfig && (
                             <img
@@ -144,7 +303,6 @@ function ProfileCard() {
                         </div>
                     </div>
 
-                    {/* Quick Action Icons */}
                     <div className="flex gap-2">
                         <button className="w-9 h-9 bg-slate-900/80 hover:bg-slate-800/80 hover:text-cyan-400 rounded-lg flex items-center justify-center text-slate-500 transition-all border border-slate-700/50 shadow-sm active:scale-90">
                             <img src="/icons/dashboard.webp" className="w-4 h-4 object-contain opacity-50 hover:opacity-100" alt="" />
@@ -175,7 +333,6 @@ function ProfileCard() {
                             {energy} / {maxEnergy}
                         </span>
                     </div>
-                    <button className="w-6 h-6 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-black transition-all shadow-sm active:scale-90 border border-emerald-400/20">+</button>
                 </div>
             </div>
 
@@ -201,18 +358,10 @@ function ProfileCard() {
                 </div>
             </div>
 
-            {/* Daily Challenge Link */}
-            <IDSQuickLink
-                icon={<span>📋</span>}
-                label="Daily Challenge"
-                href="/training"
-                hasArrow
-                className="bg-slate-950/30 border-t border-slate-700/30"
-            />
+            <IDSQuickLink icon={<span>📋</span>} label={t('dashboard.daily_challenge')} href="/training" hasArrow className="bg-slate-950/30 border-t border-slate-700/30" />
 
-            {/* Missions Grid */}
             <div className="p-4 bg-slate-950/20">
-                <IDSLabel color="dim" size="xs" className="mb-3">Missions Status</IDSLabel>
+                <IDSLabel color="dim" size="xs" className="mb-3">{t('dashboard.missions_status')}</IDSLabel>
                 <div className="grid grid-cols-4 gap-2.5">
                     <IDSMissionIcon icon={<img src="/icons/Training.webp" className="w-4 h-4 object-contain" alt="" />} progress={facilities[0]?.quality || 1} max={5} href="/training" />
                     <IDSMissionIcon icon={<img src="/icons/industrial2.webp" className="w-4 h-4 object-contain" alt="" />} done={!!user.employerId} href="/companies" />

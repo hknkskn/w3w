@@ -1,4 +1,4 @@
-export const MODULE_ADDRESS = "0xfe192a96bea96ec53397f6dbb529463d8371693043f18228ed8e7949ffc32de2";
+export const MODULE_ADDRESS = "0xe532ef18c989fde915229d42dcbecfccd5866bd0b2916e78264a3594bbd0b4aa";
 
 export const WE3WAR_MODULES = {
     CITIZEN: `${MODULE_ADDRESS}::citizen`,
@@ -14,6 +14,8 @@ export const WE3WAR_MODULES = {
     ADMIN: `${MODULE_ADDRESS}::admin`,
     GAME_TREASURY: `${MODULE_ADDRESS}::game_treasury`,
     COIN_TYPE: `${MODULE_ADDRESS}::cred_coin::CRED`,
+    SOCIAL: `${MODULE_ADDRESS}::social`,
+    ALLIANCE: `${MODULE_ADDRESS}::alliance`,
 
     // Added for Service Compatibility
     CRED_COIN: `${MODULE_ADDRESS}::cred_coin`,

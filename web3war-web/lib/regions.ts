@@ -101,3 +101,19 @@ export const getResourceInfo = (resourceType: number) => ({
     name: RESOURCE_NAMES[resourceType] || 'Unknown',
     icon: RESOURCE_ICONS[resourceType] || '❓'
 });
+
+export const getCountryFlag = (countryId: number): string => {
+    const flags: Record<number, string> = {
+        1: '🇳🇬', 2: '🇺🇦', 3: '🇷🇺', 4: '🇺🇸', 5: '🇹🇷',
+        6: '🇮🇳', 7: '🇪🇸', 8: '🇵🇱', 9: '🇧🇷', 10: '🇫🇷'
+    };
+    return flags[countryId] || '🏳️';
+};
+
+export const getCountryName = (countryId: number): string => {
+    const names: Record<number, string> = {
+        1: 'Nigeria', 2: 'Ukraine', 3: 'Russia', 4: 'USA', 5: 'Turkey',
+        6: 'India', 7: 'Spain', 8: 'Poland', 9: 'Brazil', 10: 'France'
+    };
+    return names[countryId] || `Country ${countryId}`;
+};

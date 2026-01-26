@@ -15,6 +15,7 @@ export interface CitizenProfile {
     isAdmin: boolean;
     countryId: number;
     rankPoints: number;
+    avatarSeed?: string;
     employerId?: number;
     militaryUnitId?: number;
 }

@@ -13,7 +13,8 @@ export const PoliticsService = {
                 incomeTax: Number(data[2]),
                 importTax: Number(data[3]),
                 vat: Number(data[4]),
-                electionActive: data[5] === true
+                electionActive: data[5] === true,
+                electionEndTime: Number(data[6] || 0)
             };
         } catch (e) {
             return null;
@@ -409,6 +410,15 @@ export const PoliticsService = {
             return result?.[0] || [];
         } catch (e) {
             return [];
+        }
+    },
+
+    getCooldowns: async (countryId: number) => {
+        try {
+            const result = await BaseService.view(`${WE3WAR_MODULES.GOVERNANCE}::get_cooldowns`, [], [countryId]);
+            return result || [[], []];
+        } catch (e) {
+            return [[], []];
         }
     }
 };

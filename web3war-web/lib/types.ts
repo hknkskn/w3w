@@ -214,6 +214,7 @@ export interface CountryData {
     importTax: number;
     vat: number;
     electionActive: boolean;
+    electionEndTime: number;
 
     // Legislative data
     minWage?: number;

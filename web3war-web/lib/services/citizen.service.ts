@@ -76,9 +76,15 @@ export const CitizenService = {
 
             if (!data || !Array.isArray(data)) return null;
 
+            const rawUsername = parseMoveString(data[1]);
+            const [username, avatarSeed] = rawUsername.includes('#')
+                ? rawUsername.split('#')
+                : [rawUsername, ''];
+
             return {
                 id: data[0],
-                username: parseMoveString(data[1]),
+                username,
+                avatarSeed,
                 countryId: data[2],
                 level: data[3],
                 xp: data[4],
@@ -127,7 +133,7 @@ export const CitizenService = {
             username: data?.username || 'Pilot',
             level: Number(data?.level || 0),
             xp: Number(data?.xp || 0),
-            nextLevelXp: Number(data?.nextLevelXp || 100),
+            nextLevelXp: 1000,
             strength: Number(data?.strength || 10),
             energy: Number(data?.energy || 0),
             maxEnergy: 200, // Standard max energy
@@ -136,6 +142,7 @@ export const CitizenService = {
             isAdmin: isAdmin,
             countryId: Number(data?.countryId || 0),
             rankPoints: Number(data?.rankPoints || 0),
+            avatarSeed: data?.avatarSeed,
             employerId: data?.employerId && Number(data.employerId) !== 0 ? Number(data.employerId) : undefined
         };
     },

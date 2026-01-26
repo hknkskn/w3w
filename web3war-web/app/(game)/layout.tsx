@@ -10,15 +10,20 @@ import { Button } from '@/components/Button';
 import IDSNotificationPortal from '@/components/ui/ids/IDSNotificationPortal';
 import { useGameStore } from '@/lib/store';
 import LoginScreen from '@/components/game/LoginScreen';
+import { TacticalAvatar } from '@/components/game/TacticalAvatar';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { useTranslation } from '@/lib/i18n';
 
 export default function GameLayout({ children }: { children: ReactNode }) {
     const user = useGameStore(state => state.user);
+    const { t } = useTranslation();
 
     // Initial fallback if user is not loaded (though store has default mock data)
     if (!user) return <LoginScreen />;
 
     return (
         <div className="min-h-screen font-sans relative">
+
             {/* Top Resource Bar - Always Visible */}
             <div className="fixed top-0 left-0 right-0 z-50 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 overflow-visible">
                 <div className="max-w-7xl mx-auto px-4 overflow-visible">
@@ -70,8 +75,11 @@ export default function GameLayout({ children }: { children: ReactNode }) {
 
                             {/* Profile Avatar */}
                             <Link href="/profile">
-                                <div className="w-9 h-9 bg-slate-800 rounded-lg border border-slate-600 overflow-hidden cursor-pointer hover:border-cyan-400 transition-colors">
-                                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`} alt="Avatar" className="w-full h-full object-cover" />
+                                <div className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer hover:border-cyan-400 border border-slate-700 transition-all flex items-center justify-center bg-slate-900 shadow-lg">
+                                    <TacticalAvatar
+                                        seed={user.avatarSeed || user.username}
+                                        size={40}
+                                    />
                                 </div>
                             </Link>
                         </div>
@@ -93,14 +101,16 @@ export default function GameLayout({ children }: { children: ReactNode }) {
 
                 {/* Footer */}
                 <footer className="mt-12 pt-6 border-t border-slate-800 text-center">
-                    <div className="flex justify-center gap-6 text-xs text-slate-500 font-medium mb-3">
-                        <Link href="/wiki" className="hover:text-cyan-400 transition-colors">Wiki</Link>
-                        <a href="#" className="hover:text-cyan-400 transition-colors">Blog</a>
-                        <a href="#" className="hover:text-cyan-400 transition-colors">Discord</a>
-                        <a href="#" className="hover:text-cyan-400 transition-colors">Twitter</a>
-                        <a href="#" className="hover:text-cyan-400 transition-colors">Terms</a>
+                    <div className="flex justify-center items-center gap-6 text-xs text-slate-500 font-medium mb-3 flex-wrap">
+                        <Link href="/wiki" className="hover:text-cyan-400 transition-colors">{t('footer.wiki')}</Link>
+                        <a href="#" className="hover:text-cyan-400 transition-colors">{t('footer.blog')}</a>
+                        <a href="#" className="hover:text-cyan-400 transition-colors">{t('footer.discord')}</a>
+                        <a href="#" className="hover:text-cyan-400 transition-colors">{t('footer.twitter')}</a>
+                        <a href="#" className="hover:text-cyan-400 transition-colors">{t('footer.terms')}</a>
+                        <div className="w-px h-3 bg-slate-700" />
+                        <LanguageSelector variant="footer" />
                     </div>
-                    <div className="text-xs text-slate-600">© 2025 Web3War - Built on Supra Network</div>
+                    <div className="text-xs text-slate-600">{t('footer.copyright')}</div>
                 </footer>
             </div>
 

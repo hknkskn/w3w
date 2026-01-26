@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
+import { useTranslation } from '@/lib/i18n';
 
 interface DailyTask {
     id: string;
@@ -89,6 +90,7 @@ export function DailyTasksWidget() {
 
     const [tasks, setTasks] = useState(INITIAL_TASKS);
     const { user, consumeEnergy, restoreEnergy, addDamage } = useGameStore();
+    const { t } = useTranslation();
 
     const completedCount = tasks.filter(t => t.completed).length;
 
@@ -98,7 +100,7 @@ export function DailyTasksWidget() {
         // Check requirements
         if (task.energyCost && user.energy < task.energyCost) {
             const { idsAlert } = useGameStore.getState();
-            idsAlert("Not enough energy!", "Physical Exhaustion", "warning");
+            idsAlert(t('errors.insufficient_funds'), t('errors.error'), "warning");
             return;
         }
 
@@ -141,10 +143,10 @@ export function DailyTasksWidget() {
                 <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Trophy size={16} className="text-cyan-400" />
-                        <h3 className="font-bold text-white text-sm">Daily Challenge</h3>
+                        <h3 className="font-bold text-white text-sm">{t('dashboard.daily_challenge')}</h3>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-400">{completedCount}/{tasks.length} completed</span>
+                        <span className="text-xs text-slate-400">{completedCount}/{tasks.length} {t('daily_tasks.completed')}</span>
                         <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                             <div
                                 className="h-full bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.2)]"
@@ -184,9 +186,9 @@ export function DailyTasksWidget() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className={`text-sm font-bold ${task.completed ? 'text-emerald-400 line-through' : 'text-white'}`}>
-                                        {task.title}
+                                        {t(`daily_tasks.${task.id}`)}
                                     </div>
-                                    <div className="text-[10px] text-slate-500 truncate">{task.description}</div>
+                                    <div className="text-[10px] text-slate-500 truncate">{t(`daily_tasks.${task.id}_desc`)}</div>
                                 </div>
                             </div>
 
@@ -220,10 +222,10 @@ export function DailyTasksWidget() {
                     >
                         <div className="flex items-center gap-2">
                             <Gift className="text-cyan-400" size={18} />
-                            <span className="text-sm font-bold text-cyan-400">Daily Bonus Unlocked!</span>
+                            <span className="text-sm font-bold text-cyan-400">{t('dashboard.daily_bonus_unlocked')}</span>
                         </div>
                         <Button size="sm" className="bg-gradient-to-r from-cyan-600 to-emerald-600 text-white border border-cyan-400/20">
-                            Claim +10 CRED
+                            {t('dashboard.claim_bonus')}
                         </Button>
                     </motion.div>
                 )}
@@ -233,7 +235,7 @@ export function DailyTasksWidget() {
             <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 overflow-hidden shadow-lg">
                 <div className="px-4 py-3 border-b border-slate-700/50">
                     <h3 className="font-bold text-white text-sm flex items-center gap-2">
-                        <Swords size={14} className="text-red-400" /> Campaign of the Day
+                        <Swords size={14} className="text-red-400" /> {t('dashboard.campaign_of_day')}
                     </h3>
                 </div>
 
@@ -258,10 +260,10 @@ export function DailyTasksWidget() {
                             </div>
                             <div className="flex-1">
                                 <div className="text-sm font-bold text-white">{campaign.region}</div>
-                                <div className="text-[10px] text-slate-500">{campaign.timeLeft} remaining</div>
+                                <div className="text-[10px] text-slate-500">{campaign.timeLeft} {t('daily_tasks.remaining')}</div>
                             </div>
                             <Button size="sm" className="bg-gradient-to-r from-red-500 to-orange-500">
-                                Fight
+                                {t('battle.fight')}
                             </Button>
                         </div>
                     ))}
@@ -269,7 +271,7 @@ export function DailyTasksWidget() {
 
                 <div className="px-4 py-2 border-t border-slate-700/50 text-center">
                     <button className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 mx-auto">
-                        Military campaigns <ChevronRight size={12} />
+                        {t('dashboard.military_campaigns')} <ChevronRight size={12} />
                     </button>
                 </div>
             </div>

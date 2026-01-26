@@ -96,7 +96,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
 
         } catch (e) {
             console.error(e);
-            await get().idsAlert("Failed to list item", "Trade Error", "error");
+            await get().idsTacticalAlert('TX_FAILED');
         }
     },
 
@@ -133,7 +133,7 @@ export const createMarketSlice: StateCreator<GameState, [], [], MarketSlice> = (
             }
         } catch (e) {
             console.error(e);
-            await get().idsAlert("Failed to buy item", "Trade Error", "error");
+            await get().idsTacticalAlert('TX_FAILED');
         }
     }
 });

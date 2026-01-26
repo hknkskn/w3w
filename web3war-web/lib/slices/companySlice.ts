@@ -124,7 +124,7 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
             }
 
             if (user.energy < 10) {
-                await get().idsAlert("Not enough energy (Need 10)!", "Physiological Alert", "warning");
+                await get().idsTacticalAlert('INSUFFICIENT_ENERGY');
                 return;
             }
 
@@ -141,7 +141,7 @@ export const createCompanySlice: StateCreator<GameState, [], [], CompanySlice> =
             }
         } catch (e) {
             console.error("Work failed:", e);
-            await get().idsAlert("Failed to work. Check console.", "Industrial Error", "error");
+            await get().idsTacticalAlert('TX_FAILED');
         }
     },
 

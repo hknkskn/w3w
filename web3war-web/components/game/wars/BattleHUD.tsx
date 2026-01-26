@@ -9,6 +9,7 @@ import { DeployModal } from './DeployModal';
 import { useGameStore } from '@/lib/store';
 import { BattleAnimator } from './BattleAnimator';
 import { ExplosionEffect } from './ExplosionEffect';
+import { TacticalAvatar } from '@/components/game/TacticalAvatar';
 
 interface BattleHUDProps {
     battle: Battle;
@@ -252,9 +253,13 @@ function HeroCardV2({ side, hero, isOpen, toggleOpen, battleId, onClose }: {
             <div className="rank-badge-blue">I</div>
 
             {/* Avatar Container */}
-            <div className="hero-avatar-container">
+            <div className="hero-avatar-container flex items-center justify-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden">
                 {hero ? (
-                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${hero.addr}`} className="w-full h-full object-cover" alt="" />
+                    <TacticalAvatar
+                        seed={hero.addr}
+                        size={48}
+                        showBackground={false}
+                    />
                 ) : (
                     <div className="w-full h-full bg-slate-900/40 flex items-center justify-center">
                         <Users size={20} className="text-white/10" />
@@ -341,8 +346,12 @@ function RankingsDropdown({ side, title, battleId, onClose }: { side: 'left' | '
             <div className="flex flex-col">
                 {rankings.map((r, i) => (
                     <div key={i} className="rank-item">
-                        <div className="rank-avatar relative">
-                            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${r.addr}`} className="w-full h-full" alt="" />
+                        <div className="rank-avatar relative bg-slate-900 border border-slate-700 flex items-center justify-center">
+                            <TacticalAvatar
+                                seed={r.addr}
+                                size={32}
+                                showBackground={false}
+                            />
                             <div className="rank-number">{i + 1}</div>
                         </div>
                         <div className="rank-info">

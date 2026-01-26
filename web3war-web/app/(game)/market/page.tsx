@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { MarketSell } from '@/components/game/MarketSell';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '@/lib/i18n';
 
 // ============================================================
 //  MARKETPLACE - Inventory Style Layout with Advanced Filters
@@ -45,6 +46,7 @@ const QUALITIES = [
 
 export default function MarketPage() {
     const searchParams = useSearchParams();
+    const { t } = useTranslation();
     const {
         marketItems,
         myListings,
@@ -106,7 +108,7 @@ export default function MarketPage() {
     const handleBuy = async (listing: any, quantity: number) => {
         if (!user) {
             const { idsAlert } = useGameStore.getState();
-            await idsAlert("Please login first!", "Authentication Required", "warning");
+            await idsAlert(t('market.login_first'), t('market.auth_required'), "warning");
             return;
         }
         await buyItem(listing.listingId, quantity);
@@ -134,7 +136,7 @@ export default function MarketPage() {
                             }`}
                     >
                         <tab.icon size={18} className={view === tab.id ? 'text-cyan-400' : 'text-slate-500'} />
-                        {tab.name}
+                        {t(`market.${tab.id}`)}
                     </button>
                 ))}
             </div>
@@ -165,7 +167,7 @@ export default function MarketPage() {
                                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input
                                     type="text"
-                                    placeholder="Search by item name..."
+                                    placeholder={t('market.search_placeholder')}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     className="w-full pl-12 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm"
@@ -177,7 +179,7 @@ export default function MarketPage() {
                                 <Hash size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                                 <input
                                     type="number"
-                                    placeholder="Item ID"
+                                    placeholder={t('market.item_id')}
                                     value={itemIdFilter}
                                     onChange={(e) => setItemIdFilter(e.target.value)}
                                     className="w-full pl-10 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm font-mono"
@@ -195,7 +197,7 @@ export default function MarketPage() {
                                             : 'text-slate-500 hover:text-white hover:bg-slate-700/50'
                                             }`}
                                     >
-                                        {q.name}
+                                        {q.id === 'all' ? t('common.all') : q.name}
                                     </button>
                                 ))}
                             </div>
@@ -208,7 +210,7 @@ export default function MarketPage() {
                             <div className="lg:col-span-1">
                                 <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 p-4">
                                     <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">
-                                        Categories
+                                        {t('market.categories')}
                                     </h3>
                                     <nav className="space-y-1">
                                         {CATEGORIES.map((cat) => (
@@ -221,7 +223,7 @@ export default function MarketPage() {
                                                     }`}
                                             >
                                                 <img src={cat.icon} className="w-5 h-5 object-contain" alt="" />
-                                                {cat.name}
+                                                {t(`market.${cat.id}`, {}, cat.name)}
                                             </button>
                                         ))}
                                     </nav>
@@ -234,11 +236,11 @@ export default function MarketPage() {
 
                                     {/* Table Header */}
                                     <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
-                                        <div className="col-span-5">Asset Specification</div>
-                                        <div className="col-span-2">Quality</div>
-                                        <div className="col-span-1">Qty</div>
-                                        <div className="col-span-2">Price</div>
-                                        <div className="col-span-2 text-right">Action</div>
+                                        <div className="col-span-5">{t('market.asset_specification')}</div>
+                                        <div className="col-span-2">{t('market.quality')}</div>
+                                        <div className="col-span-1">{t('market.qty')}</div>
+                                        <div className="col-span-2">{t('market.price')}</div>
+                                        <div className="col-span-2 text-right">{t('market.action')}</div>
                                     </div>
 
                                     {/* Table Body */}
@@ -249,10 +251,10 @@ export default function MarketPage() {
                                                     <Package size={24} />
                                                 </div>
                                                 <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                                                    No Listings Found
+                                                    {t('market.no_listings')}
                                                 </p>
                                                 <p className="text-slate-600 text-[9px] mt-1 uppercase tracking-wide">
-                                                    Try adjusting your filters
+                                                    {t('market.adjust_filters')}
                                                 </p>
                                             </div>
                                         ) : (
@@ -300,7 +302,7 @@ export default function MarketPage() {
                                                             {listing.pricePerUnit.toFixed(2)}
                                                         </div>
                                                         <div className="text-[8px] text-slate-600 font-bold uppercase">
-                                                            CRED / unit
+                                                            {t('market.cred_per_unit')}
                                                         </div>
                                                     </div>
 
@@ -323,7 +325,7 @@ export default function MarketPage() {
                                                                     }}
                                                                     className="px-4 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20"
                                                                 >
-                                                                    Buy
+                                                                    {t('market.buy_action')}
                                                                 </button>
                                                             </>
                                                         ) : (
@@ -331,7 +333,7 @@ export default function MarketPage() {
                                                                 onClick={() => cancelMarketListing(listing.id)}
                                                                 className="px-4 py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-red-500/20"
                                                             >
-                                                                Cancel
+                                                                {t('market.cancel_listing')}
                                                             </button>
                                                         )}
                                                     </div>

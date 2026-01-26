@@ -1,39 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
 import {
     Flag,
     Users,
     Vote,
     Gavel,
-    Crown,
+    Shield,
     Clock,
     UserPlus,
-    Shield,
     Landmark,
-    TrendingUp,
-    Percent,
     CheckCircle2,
     AlertCircle,
     Activity,
-    Database,
-    ChevronRight,
     Search,
-    UserCircle,
-    ArrowRight,
-    Building2,
     FileText,
     Target,
-    ArrowRightCircle,
     Settings,
-    LineChart,
-    Package,
     Wallet,
-    ShoppingCart,
-    Edit3,
-    Info,
-    Handshake
+    Handshake,
+    Crown
 } from 'lucide-react';
 import {
     Card,
@@ -51,9 +39,11 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { COUNTRY_CONFIG, COUNTRY_IDS, CountryId, ElectionCandidate, getCountryKey } from '@/lib/types';
 import { TerritoryService, RegionData } from '@/lib/services/territory.service';
+import { useTranslation } from '@/lib/i18n';
 
 export default function PoliticsPage() {
     const [isMounted, setIsMounted] = useState(false);
+    const { t } = useTranslation();
 
     useEffect(() => {
         setIsMounted(true);
@@ -99,7 +89,9 @@ export default function PoliticsPage() {
         reclaimableRegions,
         fetchLandlessStatus,
         fetchReclaimableRegions,
-        startResistance
+        startResistance,
+        cooldowns,
+        fetchCooldowns
     } = useGameStore();
 
     const handleTaxAdjustment = (type: number, currentRate: number) => {
@@ -116,7 +108,7 @@ export default function PoliticsPage() {
         try {
             if (adjustmentMethod === 'decree') {
                 if (adjustmentRate < 5 || adjustmentRate > 20) {
-                    alert("Decree must be between 5% and 20%");
+                    alert(t('politics.decree_range', {}, "Decree must be between 5% and 20%"));
                     setIsSubmitting(false);
                     return;
                 }
@@ -134,11 +126,56 @@ export default function PoliticsPage() {
         }
     };
 
-    const [activeTab, setActiveTab] = useState<'leadership' | 'congress' | 'voter-hub' | 'admin'>('leadership');
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<'leadership' | 'congress' | 'election-hub' | 'alliances' | 'admin'>('leadership');
+
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab && ['leadership', 'congress', 'election-hub', 'alliances', 'admin'].includes(tab)) {
+            setActiveTab(tab as any);
+        }
+    }, [searchParams]);
     const [selectedProposalId, setSelectedProposalId] = useState<number | null>(null);
     const [selectedCandidateAddr, setSelectedCandidateAddr] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [population, setPopulation] = useState<number>(0);
+
+    const packProposalData = (type: number, value: number, address?: string, role?: number) => {
+        const bytes: number[] = [];
+        if (type === 1) { // Tax
+            bytes.push(role || 0);
+            bytes.push(value);
+        } else if (type === 2) { // Treasury
+            const amount = BigInt(Math.floor(value * 100));
+            for (let i = 0; i < 8; i++) {
+                bytes.push(Number((amount >> BigInt(i * 8)) & BigInt(0xff)));
+            }
+            if (address) {
+                const cleanAddr = address.replace('0x', '').padStart(64, '0');
+                for (let i = 0; i < 32; i++) {
+                    bytes.push(parseInt(cleanAddr.substr(i * 2, 2), 16));
+                }
+            } else {
+                for (let i = 0; i < 32; i++) bytes.push(0);
+            }
+        } else if (type === 5) { // Min Wage
+            const amount = BigInt(Math.floor(value * 100));
+            for (let i = 0; i < 8; i++) {
+                bytes.push(Number((amount >> BigInt(i * 8)) & BigInt(0xff)));
+            }
+        } else if (type === 6) { // Size
+            bytes.push(value);
+        } else if (type === 7) { // Salary
+            bytes.push(role || 0);
+            const amount = BigInt(Math.floor(value * 100));
+            for (let i = 0; i < 8; i++) {
+                bytes.push(Number((amount >> BigInt(i * 8)) & BigInt(0xff)));
+            }
+        } else if (type === 8 || type === 9) { // MPP
+            bytes.push(value);
+        }
+        return bytes;
+    };
 
     // Presidential Action Modal State
     const [isActionModalOpen, setIsActionModalOpen] = useState(false);
@@ -163,50 +200,45 @@ export default function PoliticsPage() {
     const [govProposalType, setGovProposalType] = useState<number>(5);
     const [govRoleType, setGovRoleType] = useState<number>(0);
     const [govTargetValue, setGovTargetValue] = useState<number>(0);
+
+    // Alliance State
+    const [isAllianceModalOpen, setIsAllianceModalOpen] = useState(false);
+    const [allianceTargetCountry, setAllianceTargetCountry] = useState<number | null>(null);
+    const [activeAlliances, setActiveAlliances] = useState<any[]>([]);
+    const [pendingAlliances, setPendingAlliances] = useState<any[]>([]);
     const [govTargetAddress, setGovTargetAddress] = useState<string>('');
-
-    const countryId = user?.countryId ?? null;
-
-    if (countryId === null) {
-        return (
-            <div className="flex items-center justify-center min-h-[400px]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
-                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Awaiting National Link...</p>
-                </div>
-            </div>
-        );
-    }
-
-    const currentCountryData = countryData[countryId];
-    const countryBalance = (treasuryBalance as any || {})[countryId] || 0;
-    const candidates = electionCandidates[countryId] || [];
-    const selectedProposal = proposals.find(p => p.id === selectedProposalId);
+    const [hubView, setHubView] = useState<'presidential' | 'congressional'>('presidential');
+    const [addressNames, setAddressNames] = useState<Record<string, string>>({});
     const [selectedCandidate, setSelectedCandidate] = useState<ElectionCandidate | null>(null);
 
-    // Initial Data Fetch
-    useEffect(() => {
-        const candidate = candidates.find(c => c.address === selectedCandidateAddr);
-        if (candidate) {
-            setSelectedCandidate(candidate);
-            // Fetch detailed profile for strength/level if not present
-            if (candidate.strength === undefined) {
-                import('@/lib/services/citizen.service').then(({ CitizenService }) => {
-                    CitizenService.getProfile(candidate.address).then(profile => {
-                        if (profile) {
-                            setSelectedCandidate((prev: ElectionCandidate | null) => prev?.address === candidate.address ? {
-                                ...prev,
-                                strength: Number(profile.strength),
-                                level: Number(profile.level)
-                            } : prev);
-                        }
-                    });
-                });
+    const countryId = user?.countryId ?? null;
+    const currentCountryData = countryId !== null ? countryData[countryId] : null;
+    const candidates = countryId !== null ? (electionCandidates[countryId] || []) : [];
+    const selectedProposal = proposals.find(p => p.id === selectedProposalId);
+    const countryBalance = countryId !== null ? ((treasuryBalance as any || {})[countryId] || 0) : 0;
+    const isPres = user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase();
+
+    const resolveAddress = async (address: string) => {
+        if (!address || address === '0x0' || addressNames[address]) return;
+        try {
+            const { CitizenService } = await import('@/lib/services/citizen.service');
+            const profile = await CitizenService.getProfile(address);
+            if (profile?.username) {
+                setAddressNames((prev: Record<string, string>) => ({ ...prev, [address]: profile.username }));
             }
-        } else {
-            setSelectedCandidate(null);
+        } catch (e) {
+            console.warn(`Failed to resolve name for ${address}`);
         }
-    }, [selectedCandidateAddr, candidates]);
+    };
+
+    useEffect(() => {
+        if (currentCountryData?.president) {
+            resolveAddress(currentCountryData.president);
+        }
+        if (selectedProposal?.proposer) {
+            resolveAddress(selectedProposal.proposer);
+        }
+    }, [currentCountryData?.president, selectedProposal?.proposer, addressNames]);
 
     // Initial Data Fetch
     useEffect(() => {
@@ -239,6 +271,11 @@ export default function PoliticsPage() {
 
                 if (user?.address) {
                     fetchClaimableSalary(user.address, countryId);
+
+                    // Fetch Alliances
+                    const { AllianceService } = await import('@/lib/services/alliance.service');
+                    AllianceService.getMyPendingProposals(user.address).then(setPendingAlliances);
+                    AllianceService.getActiveMpps().then(setActiveAlliances);
                 }
 
                 const { CitizenService } = await import('@/lib/services/citizen.service');
@@ -253,269 +290,89 @@ export default function PoliticsPage() {
         loadData();
     }, [countryId, user?.address]);
 
+    // Elected Candidate Detail Fetch
+    useEffect(() => {
+        if (candidates.length === 0) return;
+        const candidate = candidates.find(c => c.address === selectedCandidateAddr);
+        if (candidate) {
+            setSelectedCandidate(candidate);
+            // Fetch detailed profile for strength/level if not present
+            if (candidate.strength === undefined) {
+                import('@/lib/services/citizen.service').then(({ CitizenService }) => {
+                    CitizenService.getProfile(candidate.address).then(profile => {
+                        if (profile) {
+                            setSelectedCandidate((prev: ElectionCandidate | null) => prev?.address === candidate.address ? {
+                                ...prev,
+                                strength: Number(profile.strength),
+                                level: Number(profile.level)
+                            } : prev);
+                        }
+                    });
+                });
+            }
+        } else {
+            setSelectedCandidate(null);
+        }
+    }, [selectedCandidateAddr, candidates]);
+
+    if (countryId === null) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest">{t('politics.awaiting_link', {}, 'Awaiting National Link...')}</p>
+                </div>
+            </div>
+        );
+    }
+
+
     if (!user) return null;
 
 
     const TABS = [
-        { id: 'leadership', label: 'Leadership', icon: <Shield size={18} /> },
-        { id: 'congress', label: 'Congress', icon: <Gavel size={18} /> },
-        { id: 'voter-hub', label: 'Voter Hub', icon: <Vote size={18} /> },
-        { id: 'admin', label: 'System Admin', icon: <Settings size={18} /> },
+        { id: 'leadership', label: t('politics.leadership', {}, 'Leadership'), icon: <Shield size={18} /> },
+        { id: 'congress', label: t('politics.congress'), icon: <Gavel size={18} /> },
+        { id: 'alliances', label: t('politics.alliances', {}, 'Alliances'), icon: <Handshake size={18} /> },
+        { id: 'admin', label: t('politics.system_admin', {}, 'System Admin'), icon: <Settings size={18} /> },
     ];
 
-    const renderExecutivePanel = () => {
-        const isPres = user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase();
-        if (!isPres) return null;
+    function CabinetWidget({ user, currentCountryData, treasuryBalance, population }: { user: any, currentCountryData: any, treasuryBalance: number, population: number }) {
+        if (!currentCountryData) return null;
 
         return (
-            <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="grid grid-cols-12 gap-6"
-            >
-                {/* Sidebar: Executive Identity & Telemetry */}
-                <div className="col-span-12 lg:col-span-4 space-y-4">
-                    <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="w-16 h-16 rounded-xl bg-slate-900 border border-cyan-500/30 flex items-center justify-center">
-                                <Shield className="text-cyan-400" size={32} />
-                            </div>
-                            <div>
-                                <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Executive Status</div>
-                                <h2 className="text-xl font-black text-white uppercase italic">Sector President</h2>
-                                <div className="mt-1">
-                                    <Badge variant="cyan">PRIMARY AUTHORITY</Badge>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2 pt-4 border-t border-slate-800/50">
-                            <div className="flex justify-between items-center text-[10px] uppercase font-bold">
-                                <span className="text-slate-500">ID Link</span>
-                                <span className="text-slate-300 font-mono italic">{user?.address?.substring(0, 16)}...</span>
-                            </div>
-                        </div>
-
-                        {Number(claimableSalary[`${user?.address}-${countryId}`] || 0) > 0 && (
-                            <ActionButton
-                                label={`CLAIM SALARY`}
-                                sublabel={`${(Number(claimableSalary[`${user?.address}-${countryId}`]) / 100).toLocaleString()} CRED`}
-                                variant="primary"
-                                onClick={() => countryId && claimSalary(countryId)}
-                                className="mt-6 h-12"
-                                icon={<Wallet size={16} />}
-                            />
-                        )}
-                    </Card>
-
-                    <Label size="small">National Link: Telemetry</Label>
-                    <ul className="space-y-3">
-                        <ListItem>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-cyan-500">
-                                        <Database size={14} />
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reserve</span>
-                                </div>
-                                <div className="text-sm font-black text-white">{(countryBalance / 100).toLocaleString()} <span className="text-[10px] text-slate-600">CRED</span></div>
-                            </div>
-                        </ListItem>
-                        <ListItem>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-500">
-                                        <Users size={14} />
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Citizens</span>
-                                </div>
-                                <div className="text-sm font-black text-white">{population.toLocaleString()}</div>
-                            </div>
-                        </ListItem>
-                        <ListItem>
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded bg-slate-900 border border-slate-800 flex items-center justify-center text-rose-500">
-                                        <Shield size={14} />
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Conflicts</span>
-                                </div>
-                                <div className="text-sm font-black text-white">{warStatus[countryId!]?.length || 0} SEC</div>
-                            </div>
-                        </ListItem>
-                    </ul>
+            <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                    <Users className="text-cyan-400" size={18} />
+                    <h3 className="text-sm font-black text-white uppercase tracking-widest">{t('politics.cabinet_summary', {}, 'National Cabinet Summary')}</h3>
                 </div>
 
-                {/* Main Content: Executive Policy & Directives */}
-                <div className="col-span-12 lg:col-span-8 space-y-6">
-                    {/* Economic Policy Directive Card */}
-                    <Card variant="default" className="bg-slate-950/40 border-slate-800 p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <div className="flex items-center gap-3">
-                                <LineChart className="text-cyan-400" size={18} />
-                                <h3 className="text-lg font-black text-white uppercase italic tracking-tight">Executive Economic Directives</h3>
-                            </div>
-                            <Badge variant="default">DECREE LIMIT: 5-20%</Badge>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                        <Label size="tiny">{t('politics.president')}</Label>
+                        <div className="text-[10px] font-black text-white truncate italic uppercase tracking-wider">
+                            {currentCountryData?.president ? (addressNames[currentCountryData.president] || `${currentCountryData.president.slice(0, 6)}...`) : t('politics.vacant', {}, "Vacant")}
                         </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                            {[
-                                { label: 'Income Tax', value: currentCountryData?.incomeTax, type: 0, icon: <Wallet size={14} /> },
-                                { label: 'Import Tax', value: currentCountryData?.importTax, type: 1, icon: <Package size={14} /> },
-                                { label: 'VAT Rate', value: currentCountryData?.vat, type: 2, icon: <ShoppingCart size={14} /> },
-                            ].map(tax => (
-                                <div key={tax.label} className="p-4 bg-slate-900/50 border border-slate-800 hover:border-cyan-500/30 transition-all group">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">{tax.label}</span>
-                                        <button
-                                            onClick={() => handleTaxAdjustment(tax.type, tax.value || 0)}
-                                            className="text-cyan-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <Edit3 size={14} />
-                                        </button>
-                                    </div>
-                                    <div className="text-2xl font-black text-white">{tax.value || 0}%</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="p-4 bg-slate-900/30 border border-dashed border-slate-800 flex items-center gap-4">
-                            <Info size={16} className="text-slate-600 shrink-0" />
-                            <p className="text-[9px] text-slate-500 font-bold uppercase leading-relaxed">
-                                Executive authority permits direct tax adjustments within the regulated bracket.
-                                Changes are synchronized immediately to the national core.
-                            </p>
-                        </div>
-                    </Card>
-
-                    {/* Legislative Propositions Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Gavel size={18} className="text-emerald-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Legislative Propositions</h4>
-                            </div>
-                            <div className="space-y-3">
-                                <ActionButton
-                                    label="PROPOSE MIN WAGE"
-                                    sublabel="VOTE"
-                                    variant="default"
-                                    onClick={() => {
-                                        setGovProposalType(5);
-                                        setGovTargetValue((countryGovernance[countryId!]?.minWage || 0) / 100);
-                                        setIsGovModalOpen(true);
-                                    }}
-                                    className="h-10 border-slate-700 bg-slate-900/50"
-                                    icon={<TrendingUp size={14} />}
-                                />
-                                <ActionButton
-                                    label="ADJUST SALARIES"
-                                    sublabel="VOTE"
-                                    variant="default"
-                                    onClick={() => {
-                                        setGovProposalType(7);
-                                        setGovRoleType(0);
-                                        setGovTargetValue((countryGovernance[countryId!]?.presSalary || 0) / 100);
-                                        setIsGovModalOpen(true);
-                                    }}
-                                    className="h-10 border-slate-700 bg-slate-900/50"
-                                    icon={<UserCircle size={14} />}
-                                />
-                            </div>
-                        </Card>
-
-                        <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Clock size={18} className="text-amber-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Cycle Management</h4>
-                            </div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-6 leading-relaxed">
-                                {congressElectionData[countryId]?.active
-                                    ? "Congressional election is currently live. Monitor candidate registration."
-                                    : "Initialize next congressional term election cycle."}
-                            </p>
-                            <ActionButton
-                                label={congressElectionData[countryId]?.active ? "VIEW ELECTION" : "START ELECTION"}
-                                variant={congressElectionData[countryId]?.active ? "default" : "primary"}
-                                onClick={async () => {
-                                    if (congressElectionData[countryId]?.active) {
-                                        setActiveTab('congress');
-                                    } else {
-                                        await startCongressElection(countryId!);
-                                    }
-                                }}
-                                className="h-10"
-                                icon={<Vote size={14} />}
-                            />
-                        </Card>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Target size={18} className="text-rose-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Strategic Terminal</h4>
-                            </div>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase mb-6 leading-relaxed">
-                                Authorize direct mobilization. Circumvents legislative debate but requires 1M CRED treasury burn.
-                            </p>
-                            <ActionButton
-                                label="DECLARE WAR"
-                                variant="danger"
-                                onClick={() => setIsWarModalOpen(true)}
-                                className="h-10"
-                                icon={<Flag size={14} />}
-                            />
-                        </Card>
-
-                        <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                            <div className="flex items-center gap-2 mb-6">
-                                <Users size={18} className="text-cyan-500" />
-                                <h4 className="text-xs font-black text-white uppercase tracking-widest">Welfare Index</h4>
-                            </div>
-                            <div className="space-y-3">
-                                <div className="flex justify-between items-center py-2 px-3 bg-slate-900/50 border border-slate-800">
-                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Min Wage</span>
-                                    <span className="text-xs font-black text-white">{(countryGovernance[countryId!]?.minWage || 0) / 100} CRD</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 px-3 bg-slate-900/50 border border-slate-800">
-                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Pres Salary</span>
-                                    <span className="text-xs font-black text-white">{(countryGovernance[countryId!]?.presSalary || 0) / 100} CRD</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 px-3 bg-slate-900/50 border border-slate-800">
-                                    <span className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Cong Salary</span>
-                                    <span className="text-xs font-black text-white">{(countryGovernance[countryId!]?.congSalary || 0) / 100} CRD</span>
-                                </div>
-                            </div>
-                        </Card>
+                    <div className="space-y-1">
+                        <Label size="tiny">{t('profile.population', {}, 'Population')}</Label>
+                        <div className="text-xs font-black text-white">{population.toLocaleString()} {t('common.units', {}, 'Units')}</div>
                     </div>
-
-                    {topDonors[countryId!] && topDonors[countryId!]?.length > 0 && (
-                        <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
-                            <div className="mb-4">
-                                <Label size="small">National Patriots (Top Donors)</Label>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                {topDonors[countryId!].slice(0, 4).map((donor, idx) => (
-                                    <div key={idx} className="p-3 bg-slate-900/30 border border-slate-800 hover:border-emerald-500/30 transition-colors">
-                                        <div className="text-[9px] font-mono text-cyan-500 mb-1">{donor.addr.substring(0, 10)}...</div>
-                                        <div className="text-xs font-black text-white">{(donor.amount / 100).toLocaleString()} <span className="text-[8px] text-slate-600">CRD</span></div>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    )}
+                    <div className="space-y-1">
+                        <Label size="tiny">{t('politics.treasury')}</Label>
+                        <div className="text-xs font-black text-emerald-400">{(treasuryBalance / 100).toLocaleString()} CRED</div>
+                    </div>
+                    <div className="space-y-1">
+                        <Label size="tiny">{t('common.status', {}, 'Status')}</Label>
+                        <div className="text-[10px] font-black uppercase text-cyan-500">{t('common.online', {}, 'Online')}</div>
+                    </div>
                 </div>
-            </motion.div>
+            </Card>
         );
-    };
+    }
 
     const renderLeadership = () => {
         const isPres = user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase();
-
-        if (isPres) {
-            return renderExecutivePanel();
-        }
 
         return (
             <motion.div
@@ -523,262 +380,331 @@ export default function PoliticsPage() {
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-6"
             >
-                {/* Presidential Status Panel */}
-                <Card variant="default" className={`relative overflow-hidden border-2 bg-slate-900/40 p-0 ${user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? 'border-cyan-500/30' : 'border-slate-800'}`} padding="none">
-                    <div className="flex flex-col md:flex-row items-center gap-8 p-8">
-                        <div className="relative">
-                            <div className={`w-20 h-20 rounded-2xl bg-slate-950 border flex items-center justify-center shadow-2xl relative z-10 ${user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? 'border-cyan-500/50' : 'border-slate-800'}`}>
-                                <Shield className={user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? "text-cyan-400" : "text-slate-600"} size={40} />
-                            </div>
-                            {currentCountryData?.president && (
-                                <div className="absolute -top-2 -right-2 z-20 bg-amber-500 rounded-full p-1.5 shadow-lg border-2 border-slate-900">
-                                    <Crown size={16} className="text-slate-950" />
-                                </div>
-                            )}
-                            <div className={`absolute inset-0 blur-3xl rounded-full ${user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? 'bg-cyan-500/20' : 'bg-slate-500/5'}`} />
-                        </div>
-
-                        <div className="flex-1 text-center md:text-left">
-                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-1">Executive Administration</div>
-                            <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">
-                                {currentCountryData?.president ? (
-                                    user?.address?.toLowerCase() === currentCountryData.president?.toLowerCase() ? "Your Administration" : "Council Presidency"
-                                ) : "Vacant Authority"}
-                            </h2>
-                            <div className="flex items-center justify-center md:justify-start gap-3 mt-2">
-                                <Badge variant={currentCountryData?.president ? "cyan" : "default"}>
-                                    {currentCountryData?.president ? "ACTIVE TERM" : "PENDING ELECTION"}
-                                </Badge>
-                                <span className="text-[10px] font-mono text-slate-600 truncate max-w-[200px]">
-                                    {currentCountryData?.president || "0x000...000"}
-                                </span>
-                            </div>
-                        </div>
-
-                        {user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? (
-                            <div className="flex flex-col gap-2">
-                                <Badge variant="cyan">
-                                    <div className="flex items-center gap-2 px-3 py-1">
-                                        <Crown size={14} /> PRESIDENTIAL AUTHORITY
-                                    </div>
-                                </Badge>
-                                {Number(claimableSalary[`${user.address}-${countryId}`] || 0) > 0 && (
-                                    <ActionButton
-                                        label={`CLAIM SALARY (${(Number(claimableSalary[`${user.address}-${countryId}`]) / 100).toLocaleString()} CRED)`}
-                                        variant="primary"
-                                        onClick={() => claimSalary(countryId)}
-                                        className="h-10 text-[10px]"
-                                    />
-                                )}
-                            </div>
-                        ) : (
-                            <div className="flex flex-col gap-2">
-                                {isCongressMember && Number(claimableSalary[`${user.address}-${countryId}`] || 0) > 0 && (
-                                    <ActionButton
-                                        label={`CLAIM SALARY (${(Number(claimableSalary[`${user.address}-${countryId}`]) / 100).toLocaleString()} CRED)`}
-                                        variant="primary"
-                                        onClick={() => claimSalary(countryId)}
-                                        className="h-10 text-[10px]"
-                                    />
-                                )}
-                                {currentCountryData?.president && (
-                                    <ActionButton
-                                        label="IMPEACH PRESIDENT"
-                                        variant="danger"
-                                        icon={<AlertCircle size={14} />}
-                                        className="h-10 px-4 opacity-50 hover:opacity-100"
-                                        onClick={async () => {
-                                            if (confirm("INITIATE IMPEACHMENT PROTOCOL?\n\nCost: 500k CRED\nRequirement: Simple majority of ALL citizens.\n\nProceed with high-risk political maneuver?")) {
-                                                await initiateImpeachment(countryId);
-                                            }
-                                        }}
-                                    />
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </Card>
-
+                {/* Compact Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard
-                        label="MIN WAGE"
-                        value={`${(countryGovernance[countryId]?.minWage || 0) / 100}`}
+                        label={t('politics.president')}
+                        value={currentCountryData?.president ? (addressNames[currentCountryData.president] || `${currentCountryData.president.substring(0, 4)}...${currentCountryData.president.substring(currentCountryData.president.length - 4)}`) : t('politics.vacant', {}, "VACANT")}
+                        unit={isPres ? t('politics.your_term', {}, "YOUR TERM") : t('politics.office', {}, "OFFICE")}
+                        icon={<Crown className="text-cyan-400" />}
+                    />
+                    <StatCard
+                        label={t('politics.treasury')}
+                        value={(countryBalance / 100).toLocaleString()}
                         unit="CRED"
-                        icon={<Gavel className="text-emerald-500" />}
+                        icon={<Landmark className="text-cyan-400" />}
                     />
                     <StatCard
-                        label="PRES SALARY"
-                        value={`${(countryGovernance[countryId]?.presSalary || 0) / 100}`}
-                        unit="CRED/D"
-                        icon={<Crown className="text-amber-500" />}
+                        label={t('profile.citizenship', {}, 'CITIZENS')}
+                        value={population.toLocaleString()}
+                        unit={t('common.units', {}, 'UNITS').toUpperCase()}
+                        icon={<Users className="text-cyan-400" />}
                     />
                     <StatCard
-                        label="CONG SALARY"
-                        value={`${(countryGovernance[countryId]?.congSalary || 0) / 100}`}
-                        unit="CRED/D"
-                        icon={<Users className="text-blue-500" />}
-                    />
-                    <StatCard
-                        label="VAT RATE"
-                        value={`${currentCountryData?.vat || 0}%`}
-                        unit="TAX_VAT"
-                        icon={<LineChart className="text-cyan-500" />}
+                        label={t('politics.min_wage')}
+                        value={`${(countryGovernance[countryId!]?.minWage || 0) / 100}`}
+                        unit="CRED"
+                        icon={<Gavel className="text-cyan-400" />}
                     />
                 </div>
 
-                <Card variant="default" className="bg-slate-900/50 border-slate-700/50 p-8">
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-3">
-                            <Landmark size={20} className="text-cyan-400" />
-                            <h2 className={TYPOGRAPHY.h2}>Federation Core Telemetry</h2>
-                        </div>
-                        <div className="flex gap-2">
-                            {warStatus[countryId]?.length > 0 && (
-                                <Badge variant="amber">
-                                    AT WAR WITH: {warStatus[countryId].map(id => getCountryKey(id)).join(', ')}
-                                </Badge>
-                            )}
-                            <Badge variant={currentCountryData?.electionActive ? "amber" : "emerald"}>
-                                {currentCountryData?.electionActive ? "Election Cycle Active" : "System Status: Stable"}
-                            </Badge>
+                <div className="grid grid-cols-12 gap-6">
+                    {/* Executive Control Panel */}
+                    <div className="col-span-12 lg:col-span-8 space-y-4">
+                        <Card variant="default" className="bg-slate-900/40 border-slate-800 p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2 text-cyan-400">
+                                    <Target size={18} />
+                                    <h3 className="text-xs font-black uppercase tracking-widest">{t('politics.executive_command')}</h3>
+                                </div>
+                                {isPres && <Badge variant="cyan">{t('politics.commander_in_chief')}</Badge>}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-4 p-4 bg-slate-950/40 rounded-xl border border-slate-800">
+                                    <Label size="tiny">{t('politics.strategic_directives')}</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <ActionButton
+                                            label={t('politics.declare_war_action')}
+                                            variant="danger"
+                                            className="h-12 text-[10px]"
+                                            disabled={!isPres}
+                                            onClick={() => setIsWarModalOpen(true)}
+                                        />
+                                        <ActionButton
+                                            label={t('politics.mpp_proposal')}
+                                            variant="primary"
+                                            className="h-12 text-[10px]"
+                                            disabled={!isPres}
+                                            onClick={() => setIsAllianceModalOpen(true)}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4 p-4 bg-slate-950/40 rounded-xl border border-slate-800">
+                                    <Label size="tiny">{t('politics.economic_directives')}</Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <ActionButton
+                                            label={t('politics.inc_tax_action')}
+                                            variant="primary"
+                                            className="h-12 text-[8px]"
+                                            disabled={!isPres}
+                                            onClick={() => handleTaxAdjustment(0, currentCountryData?.incomeTax || 0)}
+                                        />
+                                        <ActionButton
+                                            label={t('politics.imp_tax_action')}
+                                            variant="primary"
+                                            className="h-12 text-[8px]"
+                                            disabled={!isPres}
+                                            onClick={() => handleTaxAdjustment(1, currentCountryData?.importTax || 0)}
+                                        />
+                                        <ActionButton
+                                            label={t('politics.set_vat_action')}
+                                            variant="primary"
+                                            className="h-12 text-[8px]"
+                                            disabled={!isPres}
+                                            onClick={() => handleTaxAdjustment(2, currentCountryData?.vat || 0)}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <Card variant="default" className="bg-slate-900/40 border-slate-800 p-6">
+                                <Label size="tiny">{t('politics.governance_metrics')}</Label>
+                                <div className="mt-4 space-y-3">
+                                    <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-slate-500 font-bold uppercase">{t('politics.pres_salary_net')}</span>
+                                        <span className="text-white font-black">
+                                            {((countryGovernance[countryId!]?.presSalary || 0) * (1 - (currentCountryData?.incomeTax || 0) / 100) / 100).toLocaleString()} CRED/D
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-slate-500 font-bold uppercase">{t('politics.cong_salary_net')}</span>
+                                        <span className="text-white font-black">
+                                            {((countryGovernance[countryId!]?.congSalary || 0) * (1 - (currentCountryData?.incomeTax || 0) / 100) / 100).toLocaleString()} CRED/D
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[10px]">
+                                        <span className="text-slate-500 font-bold uppercase">{t('politics.vat_rate')}</span>
+                                        <span className="text-white font-black">{currentCountryData?.vat || 0}%</span>
+                                    </div>
+                                </div>
+                            </Card>
+
+                            <Card variant="default" className="bg-slate-900/40 border-slate-800 p-6 flex flex-col justify-center items-center text-center">
+                                <Landmark className="text-cyan-400 mb-2" size={32} />
+                                <div className="text-xl font-black text-white italic">{(countryBalance / 100).toLocaleString()}</div>
+                                <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1">{t('politics.national_reserve')}</div>
+                                <button
+                                    onClick={() => setIsDonationModalOpen(true)}
+                                    className="mt-4 text-[9px] font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest transition-colors"
+                                >
+                                    {t('politics.donate_cred_action')}
+                                </button>
+                            </Card>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-12 gap-8">
-                        <div className="col-span-12 lg:col-span-12">
-                            {user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase() ? (
-                                <div className="bg-cyan-500/5 rounded-2xl border border-cyan-500/20 p-6 space-y-4">
-                                    <div className="flex items-center gap-2 text-cyan-400 mb-2">
-                                        <Target size={18} />
-                                        <span className="text-xs font-black uppercase tracking-widest">Executive Command Console</span>
+                    {/* Right Panel: Cabinet & Actions */}
+                    <div className="col-span-12 lg:col-span-4 space-y-4">
+                        <CabinetWidget user={user} currentCountryData={currentCountryData} treasuryBalance={countryBalance} population={population} />
+
+                        {(isPres || isCongressMember) && Number(claimableSalary[`${user.address}-${countryId}`] || 0) > 0 && (
+                            <Card variant="default" className="bg-cyan-500/5 border-cyan-500/20 p-6">
+                                <div className="text-[9px] text-cyan-400 font-black uppercase tracking-widest mb-4">{t('politics.salary_distribution')}</div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <div className="text-2xl font-black text-white">
+                                        {(Number(claimableSalary[`${user.address}-${countryId}`]) * (1 - (currentCountryData?.incomeTax || 0) / 100) / 100).toLocaleString()} <span className="text-xs text-slate-500">CRED</span>
                                     </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-3">
-                                            <Label size="tiny">Strategic Directives</Label>
-                                            <ActionButton
-                                                label="DECLARE WAR (1M CRED BURN)"
-                                                variant="danger"
-                                                className="w-full h-12"
-                                                icon={<Shield size={14} />}
-                                                onClick={() => setIsWarModalOpen(true)}
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label size="tiny">Economic Directives (Direct or Voted)</Label>
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <ActionButton
-                                                    label="SET INC"
-                                                    variant="primary"
-                                                    className="w-full h-12 text-[10px]"
-                                                    icon={<Percent size={12} />}
-                                                    onClick={() => handleTaxAdjustment(0, currentCountryData?.incomeTax || 0)}
-                                                />
-                                                <ActionButton
-                                                    label="SET IMP"
-                                                    variant="primary"
-                                                    className="w-full h-12 text-[10px]"
-                                                    icon={<Percent size={12} />}
-                                                    onClick={() => handleTaxAdjustment(1, currentCountryData?.importTax || 0)}
-                                                />
-                                                <ActionButton
-                                                    label="SET VAT"
-                                                    variant="primary"
-                                                    className="w-full h-12 text-[10px]"
-                                                    icon={<Percent size={12} />}
-                                                    onClick={() => handleTaxAdjustment(2, currentCountryData?.vat || 0)}
-                                                />
+                                    <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+                                        <Wallet size={20} />
+                                    </div>
+                                </div>
+                                <ActionButton
+                                    label={t('politics.claim_accrued_salary')}
+                                    variant="primary"
+                                    className="w-full h-10"
+                                    onClick={() => claimSalary(countryId)}
+                                />
+                            </Card>
+                        )}
+
+                        {!isPres && currentCountryData?.president && (
+                            <Card variant="default" className="bg-red-500/5 border-red-500/20 p-6">
+                                <div className="flex items-center gap-2 text-red-400 mb-2">
+                                    <AlertCircle size={14} />
+                                    <span className="text-[9px] font-black uppercase">{t('politics.opposition_terminal')}</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase leading-relaxed mb-4">
+                                    {t('politics.impeachment_note')}
+                                </p>
+                                <button
+                                    className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 rounded-lg text-[9px] font-black text-red-500 uppercase tracking-widest transition-all"
+                                    onClick={async () => {
+                                        if (confirm(t('politics.confirm_impeachment', {}, "INITIATE IMPEACHMENT?"))) await initiateImpeachment(countryId);
+                                    }}
+                                >
+                                    {t('politics.initiate_vote')}
+                                </button>
+                            </Card>
+                        )}
+                    </div>
+                </div>
+            </motion.div>
+        );
+    };
+
+    const renderAlliances = () => {
+        const isPres = user?.address?.toLowerCase() === currentCountryData?.president?.toLowerCase();
+
+        return (
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-6"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Pending Proposals (Private) */}
+                    <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <Clock className="text-amber-500" size={18} />
+                                <h3 className="text-sm font-black text-white uppercase tracking-widest">Pending MPP Proposals</h3>
+                            </div>
+                            {isPres && (
+                                <button onClick={() => setIsAllianceModalOpen(true)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-black rounded-lg transition-all uppercase">
+                                    PROPOSE ALLIANCE
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="space-y-3">
+                            {pendingAlliances.length === 0 ? (
+                                <p className="text-[10px] text-slate-600 font-bold uppercase py-4 text-center">{t('politics.no_pending_alliances')}</p>
+                            ) : (
+                                pendingAlliances.map((prop, i) => (
+                                    <div key={i} className="p-4 bg-slate-900/50 border border-slate-800 rounded-xl flex items-center justify-between group">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-500">
+                                                <Handshake size={20} />
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-black text-white">Proposal #{i + 1}</div>
+                                                <div className="text-[9px] text-slate-500 font-bold uppercase">From: {prop.proposer_country}</div>
                                             </div>
                                         </div>
-                                        {isLandless && (
-                                            <div className="space-y-3">
-                                                <Label size="tiny">Freedom Fighters</Label>
-                                                <ActionButton
-                                                    label="START RESISTANCE (250K CRED)"
-                                                    variant="primary"
-                                                    className="w-full h-12"
-                                                    icon={<Flag size={14} />}
-                                                    onClick={() => {
-                                                        alert("Landless Resistance Protocol Activated. Choose a region to liberate.");
-                                                        setIsWarModalOpen(true);
-                                                    }}
-                                                />
-                                            </div>
+                                        {isPres && (
+                                            <button
+                                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black rounded-lg transition-all uppercase"
+                                                onClick={async () => {
+                                                    await createProposal(countryId!, 9, [prop.proposer_country]);
+                                                }}
+                                            >
+                                                {t('politics.propose_acceptance')}
+                                            </button>
                                         )}
                                     </div>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-6">
-                                        <div className="bg-slate-800/20 p-6 rounded-2xl border border-slate-800/50">
-                                            <Label size="tiny">Population Count</Label>
-                                            <div className="text-2xl font-black text-white mt-1">
-                                                {population.toLocaleString()} <span className="text-[10px] text-slate-500 font-bold uppercase ml-1">CITIZENS</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-6">
-                                            {/* Treasury Card */}
-                                            <div className="bg-slate-900/40 rounded-2xl border border-slate-800 p-6">
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-2 text-cyan-400">
-                                                        <Landmark size={18} />
-                                                        <span className="text-xs font-black uppercase tracking-widest">National Treasury</span>
-                                                    </div>
-                                                    <Badge variant="cyan">{(countryBalance / 100).toLocaleString()} CRED</Badge>
-                                                </div>
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] text-slate-500 font-bold uppercase">Funding Status</span>
-                                                        <span className="text-[10px] text-emerald-500 font-black uppercase">NOMINAL</span>
-                                                    </div>
-                                                    <ActionButton
-                                                        label="DONATE CRED TO TREASURY"
-                                                        variant="primary"
-                                                        className="w-full h-10 border-cyan-500/20 bg-cyan-500/5 hover:bg-cyan-500/10"
-                                                        onClick={() => setIsDonationModalOpen(true)}
-                                                    />
-                                                </div>
-
-                                                {topDonors[countryId] && topDonors[countryId].length > 0 && (
-                                                    <div className="mt-6 pt-6 border-t border-slate-800/50">
-                                                        <Label size="tiny">Top Patriots (Donors)</Label>
-                                                        <div className="mt-3 space-y-2">
-                                                            {topDonors[countryId].slice(0, 3).map((donor, idx) => (
-                                                                <div key={idx} className="flex items-center justify-between p-2 rounded-lg bg-slate-950/50 border border-slate-800/30">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className="w-5 h-5 rounded bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-500">#{idx + 1}</div>
-                                                                        <span className="text-[9px] font-mono text-slate-400">{donor.addr.substring(0, 10)}...</span>
-                                                                    </div>
-                                                                    <span className="text-[9px] font-black text-white">{(donor.amount / 100).toLocaleString()} CRED</span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            <div className="bg-slate-800/20 p-6 rounded-2xl border border-slate-800/50">
-                                                <Label size="tiny">Election Schedule</Label>
-                                                <div className="text-2xl font-black text-cyan-400 mt-1 uppercase">Monthly Cycle</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="block mb-4"><Label size="tiny">NATIONAL TREASURY</Label></div>
-                                        <div className="bg-slate-950/40 rounded-2xl border border-dashed border-slate-800 p-8 flex flex-col items-center justify-center text-center gap-4">
-                                            <Database size={32} className="text-slate-600" />
-                                            <div>
-                                                <p className="text-xl font-black text-white">{(countryBalance / 100).toLocaleString()} <span className="text-[10px] text-slate-500">CRED</span></p>
-                                                <p className="text-[8px] text-slate-700 font-bold uppercase tracking-widest mt-1 italic">Secured National Reserve</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+                                ))
                             )}
                         </div>
-                    </div>
-                </Card>
+                    </Card>
+
+                    {/* Active Alliances (Public) */}
+                    <Card variant="default" className="bg-slate-950/40 border-slate-800 p-6">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Shield className="text-cyan-400" size={18} />
+                            <h3 className="text-sm font-black text-white uppercase tracking-widest">{t('politics.active_alliances')}</h3>
+                        </div>
+
+                        <div className="space-y-3">
+                            {activeAlliances.filter(a => Number(a.a) === countryId || Number(a.b) === countryId).length === 0 ? (
+                                <p className="text-[10px] text-slate-600 font-bold uppercase py-4 text-center">{t('politics.no_active_mpps')}</p>
+                            ) : (
+                                activeAlliances.filter(a => Number(a.a) === countryId || Number(a.b) === countryId).map((alliance, i) => {
+                                    const partnerId = Number(alliance.a) === countryId ? Number(alliance.b) : Number(alliance.a);
+                                    const partnerKey = (Object.keys(COUNTRY_IDS) as CountryId[]).find(k => COUNTRY_IDS[k] === partnerId) || 'TR' as CountryId;
+                                    const partnerConfig = COUNTRY_CONFIG[partnerKey];
+
+                                    return (
+                                        <div key={i} className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <img src={partnerConfig.flag} className="w-10 h-6 object-cover rounded shadow-sm border border-white/10" alt="" />
+                                                <div>
+                                                    <div className="text-xs font-black text-white uppercase italic">{partnerConfig.name}</div>
+                                                    <div className="text-[9px] text-cyan-400 font-black uppercase tracking-tighter">{t('politics.mutual_defense_pakt')}</div>
+                                                </div>
+                                            </div>
+                                            <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400">
+                                                <CheckCircle2 size={16} />
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </Card>
+                </div>
             </motion.div>
+        );
+    };
+
+    const renderAllianceModal = () => {
+        const targetCountries = (Object.keys(COUNTRY_IDS) as CountryId[])
+            .filter(cid => COUNTRY_IDS[cid] !== countryId);
+
+        return (
+            <Modal
+                isOpen={isAllianceModalOpen}
+                onClose={() => setIsAllianceModalOpen(false)}
+                title={t('politics.diplomatic_proposal')}
+            >
+                <div className="space-y-6">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase leading-relaxed">
+                        {t('politics.mpp_description')}
+                    </p>
+
+                    <div>
+                        <Label size="tiny">Target Federation</Label>
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                            {targetCountries.map(cid => (
+                                <button
+                                    key={cid}
+                                    onClick={() => setAllianceTargetCountry(COUNTRY_IDS[cid])}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${allianceTargetCountry === COUNTRY_IDS[cid] ? 'bg-cyan-500/10 border-cyan-500' : 'bg-slate-900 border-slate-800'}`}
+                                >
+                                    <img src={COUNTRY_CONFIG[cid].flag} className="w-8 h-5 object-cover rounded" alt="" />
+                                    <span className="text-[10px] font-black text-white uppercase">{COUNTRY_CONFIG[cid].name}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button onClick={() => setIsAllianceModalOpen(false)} className="flex-1 px-4 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase">Cancel</button>
+                        <button
+                            disabled={!allianceTargetCountry || isSubmitting}
+                            onClick={async () => {
+                                if (!allianceTargetCountry) return;
+                                setIsSubmitting(true);
+                                try {
+                                    // Pivot to Type 8 Proposal as requested by user
+                                    await createProposal(countryId!, 8, [allianceTargetCountry]);
+                                    setIsAllianceModalOpen(false);
+                                } catch (e) {
+                                    console.error(e);
+                                } finally {
+                                    setIsSubmitting(false);
+                                }
+                            }}
+                            className="flex-1 px-4 py-3 bg-cyan-500 text-slate-950 rounded-xl text-[10px] font-black uppercase"
+                        >
+                            {isSubmitting ? t('common.sending', {}, 'Sending...') : t('common.send_proposal', {}, 'Send Proposal')}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
         );
     };
 
@@ -791,7 +717,7 @@ export default function PoliticsPage() {
             {/* Sidebar: Proposals List */}
             <div className="col-span-12 lg:col-span-4 space-y-4">
                 <div className="flex items-center justify-between px-2">
-                    <Label size="small">Legislative Queue</Label>
+                    <Label size="small">{t('politics.legislative_queue')}</Label>
                     {isCongressMember && (
                         <button
                             className="text-[9px] font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest flex items-center gap-1 transition-colors"
@@ -801,7 +727,7 @@ export default function PoliticsPage() {
                                 setIsGovModalOpen(true);
                             }}
                         >
-                            <UserPlus size={14} /> NEW MOTION
+                            <UserPlus size={14} /> {t('politics.new_motion')}
                         </button>
                     )}
                 </div>
@@ -809,8 +735,8 @@ export default function PoliticsPage() {
                 <div className="space-y-3 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
                     {proposals.length === 0 ? (
                         <EmptyState
-                            title="No Active Proposals"
-                            description="The legislative queue is currently synchronization complete."
+                            title={t('politics.no_active_proposals')}
+                            description={t('politics.legislative_empty')}
                             icon={<Gavel size={32} className="opacity-10" />}
                         />
                     ) : (
@@ -826,19 +752,21 @@ export default function PoliticsPage() {
                                             <FileText size={20} />
                                         </div>
                                         <div>
-                                            <div className="text-xs font-black text-white uppercase tracking-tight">Motion #{proposal.id}</div>
+                                            <div className="text-xs font-black text-white uppercase tracking-tight">{t('politics.motion_id', { id: proposal.id })}</div>
                                             <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                                                {proposal.type === 1 ? 'Tax Amendment' :
-                                                    proposal.type === 2 ? 'Treasury Direct' :
-                                                        proposal.type === 3 ? 'War Declaration' :
-                                                            proposal.type === 4 ? 'Impeachment' :
-                                                                proposal.type === 5 ? 'Min Wage Law' :
-                                                                    proposal.type === 6 ? 'Congress Size' : 'Salary Adj'}
+                                                {proposal.type === 1 ? t('politics.tax_amendment') :
+                                                    proposal.type === 2 ? t('politics.treasury_direct') :
+                                                        proposal.type === 3 ? t('politics.war_declaration') :
+                                                            proposal.type === 4 ? t('politics.impeachment') :
+                                                                proposal.type === 5 ? t('politics.min_wage_law') :
+                                                                    proposal.type === 6 ? t('politics.congress_size') :
+                                                                        proposal.type === 8 ? t('politics.initiate_mpp') :
+                                                                            proposal.type === 9 ? t('politics.accept_mpp') : t('politics.salary_adj', {}, 'Salary Adj')}
                                             </div>
                                         </div>
                                     </div>
                                     <Badge variant={proposal.executed ? "emerald" : ((Date.now() / 1000) > proposal.createdAt + 86400 ? "amber" : "cyan")}>
-                                        {proposal.executed ? "PASS" : ((Date.now() / 1000) > proposal.createdAt + 86400 ? "FINALIZE" : "VOTE")}
+                                        {proposal.executed ? t('politics.pass_status') : ((Date.now() / 1000) > proposal.createdAt + 86400 ? t('politics.finalize_status') : t('politics.vote_status'))}
                                     </Badge>
                                 </div>
                             </ListItem>
@@ -855,12 +783,12 @@ export default function PoliticsPage() {
                         <div className="flex justify-between items-center mb-6">
                             <div>
                                 <h3 className="text-xl font-black text-white uppercase italic">
-                                    {congressElectionData[countryId]?.active ? "Active Congress Election" : "Legislative Cycle Management"}
+                                    {congressElectionData[countryId]?.active ? t('politics.active_election') : t('politics.management')}
                                 </h3>
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
                                     {congressElectionData[countryId]?.active
-                                        ? `Election ends in: ${Math.max(0, Math.floor((congressElectionData[countryId]?.endTime - Date.now() / 1000) / 60))} mins`
-                                        : "Initialize a new congressional term selection."}
+                                        ? `${t('politics.election_ends')}: ${Math.max(0, Math.floor((congressElectionData[countryId]?.endTime - Date.now() / 1000) / 60))} mins`
+                                        : t('politics.initialize_term')}
                                 </p>
                             </div>
                             <div className="flex gap-2">
@@ -868,7 +796,7 @@ export default function PoliticsPage() {
                                     <>
                                         {!congressElectionData[countryId]?.candidates.includes(user.address) && isCongressMember && (
                                             <ActionButton
-                                                label="REGISTER"
+                                                label={t('politics.register_action')}
                                                 variant="primary"
                                                 onClick={() => registerCongressCandidate(countryId)}
                                                 className="h-10 px-6"
@@ -876,7 +804,7 @@ export default function PoliticsPage() {
                                         )}
                                         {user.address === currentCountryData?.president && (
                                             <ActionButton
-                                                label="END ELECTION"
+                                                label={t('politics.end_election_action', {}, "END ELECTION")}
                                                 variant="danger"
                                                 onClick={() => endCongressElection(countryId)}
                                                 className="h-10 px-6"
@@ -886,7 +814,7 @@ export default function PoliticsPage() {
                                 ) : (
                                     user.address === currentCountryData?.president && (
                                         <ActionButton
-                                            label="START ELECTION"
+                                            label={t('politics.start_election_action', {}, "START ELECTION")}
                                             variant="primary"
                                             onClick={() => startCongressElection(countryId)}
                                             className="h-10 px-6"
@@ -918,7 +846,7 @@ export default function PoliticsPage() {
                                     </div>
                                 ))}
                                 {congressElectionData[countryId]?.candidates.length === 0 && (
-                                    <p className="col-span-2 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest py-4">No candidates registered yet.</p>
+                                    <p className="col-span-2 text-center text-[10px] text-slate-600 font-bold uppercase tracking-widest py-4">{t('politics.no_candidates', {}, 'No candidates registered yet.')}</p>
                                 )}
                             </div>
                         )}
@@ -931,23 +859,22 @@ export default function PoliticsPage() {
                         <div className="flex justify-between items-start mb-8">
                             <div>
                                 <div className="flex items-center gap-3 mb-2">
-                                    <h2 className={TYPOGRAPHY.h2}>Legislative Review</h2>
+                                    <h2 className={TYPOGRAPHY.h2}>{t('politics.legislative_review')}</h2>
                                     <Badge variant={selectedProposal.executed ? "emerald" : "amber"}>
-                                        {selectedProposal.executed ? "Pass" :
-                                            (Date.now() / 1000) > selectedProposal.createdAt + 86400 ? "Voting Finished" :
-                                                selectedProposal.type === 4 ? "Awaiting Citizen Response" : "Awaiting Majority"}
+                                        {selectedProposal.executed ? t('politics.pass_status') :
+                                            (Date.now() / 1000) > selectedProposal.createdAt + 86400 ? t('politics.voting_finished', {}, 'Voting Finished') : t('common.active', {}, 'Active')}
                                     </Badge>
                                 </div>
                                 <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest">
-                                    Initiated by: <span className="text-slate-300 font-mono">{selectedProposal.proposer}</span>
+                                    {t('politics.initiated_by')}: <span className="text-cyan-400 font-black">{addressNames[selectedProposal.proposer] || `${selectedProposal.proposer.slice(0, 6)}...${selectedProposal.proposer.slice(-4)}`}</span>
                                 </p>
                             </div>
                             <div className="text-right">
-                                <Label size="tiny">Reference ID</Label>
+                                <Label size="tiny">{t('politics.reference_id')}</Label>
                                 <div className="text-2xl font-mono font-black text-white leading-none">#{selectedProposal.id}</div>
                                 {!selectedProposal.executed && (Date.now() / 1000) > selectedProposal.createdAt + 86400 && (
                                     <ActionButton
-                                        label="EXECUTE"
+                                        label={t('politics.execute')}
                                         variant="primary"
                                         onClick={() => finalizeProposal(selectedProposal.id)}
                                         className="h-8 px-4 mt-2 text-[10px]"
@@ -958,50 +885,12 @@ export default function PoliticsPage() {
 
                         <div className="space-y-8">
                             <div className="p-6 bg-slate-900/60 rounded-2xl border border-slate-800">
-                                <Label size="tiny">PROPOSAL CORE DIRECTIVE</Label>
+                                <Label size="tiny">{t('politics.proposal_core')}</Label>
                                 <div className="mt-4 text-sm text-slate-200 uppercase tracking-wide leading-relaxed">
                                     {selectedProposal.type === 1 ? (
-                                        <>
-                                            Execution of national tax adjustment protocol directed at <span className="text-cyan-400">
-                                                {selectedProposal.data ? (
-                                                    selectedProposal.data[0] === 0 ? 'Income Tax' :
-                                                        selectedProposal.data[0] === 1 ? 'Import Tax' : 'VAT'
-                                                ) : 'Unknown Sector'}
-                                            </span>.
-                                            Target Rate Adjustment to <span className="text-cyan-400 font-black">{selectedProposal.data ? `${selectedProposal.data[1]}%` : '??%'}</span>.
-                                        </>
-                                    ) : selectedProposal.type === 2 ? (
-                                        <>
-                                            Direct extraction and allocation of national treasury assets.
-                                            Target fulfillment: <span className="text-cyan-400">Recipient Address</span>.
-                                        </>
-                                    ) : selectedProposal.type === 3 ? (
-                                        <>
-                                            Declaration of State of Conflict. Target Nation ID: <span className="text-rose-500 font-black">{selectedProposal.data ? selectedProposal.data[0] : '??'}</span>.
-                                            Requires Congressional Ratification.
-                                        </>
-                                    ) : selectedProposal.type === 4 ? (
-                                        <>
-                                            High-level governance reset: <span className="text-rose-500 font-black">IMPEACHMENT OF SITTING PRESIDENT</span>.
-                                            Requires absolute majority of the citizen population.
-                                        </>
-                                    ) : selectedProposal.type === 5 ? (
-                                        <>
-                                            Social welfare adjustment: <span className="text-emerald-500 font-black">SET MINIMUM WAGE</span>.
-                                            Target: <span className="text-emerald-500">{selectedProposal.data ? selectedProposal.data[0] : '??'} CRED</span>.
-                                        </>
-                                    ) : selectedProposal.type === 6 ? (
-                                        <>
-                                            Administrative restructuring: <span className="text-blue-500 font-black">CONGRESS SIZE REVISION</span>.
-                                            New Seat Count: <span className="text-blue-500">{selectedProposal.data ? selectedProposal.data[0] : '??'}</span>.
-                                        </>
-                                    ) : selectedProposal.type === 7 ? (
-                                        <>
-                                            Compensation adjustment for <span className="text-amber-500 font-black">{selectedProposal.data ? (selectedProposal.data[0] === 0 ? 'PRESIDENT' : 'CONGRESS') : 'OFFICIALS'}</span>.
-                                            Target: <span className="text-amber-500">{selectedProposal.data ? selectedProposal.data[1] : '??'} CRED</span> per day.
-                                        </>
+                                        <>{t('politics.tax_amendment_desc')}</>
                                     ) : (
-                                        "Standard legislative directive requiring congressional consensus."
+                                        t('politics.standard_directive')
                                     )}
                                 </div>
                             </div>
@@ -1009,23 +898,13 @@ export default function PoliticsPage() {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-end">
                                     <div>
-                                        <Label size="tiny">AFFIRMATIVE VOTES</Label>
+                                        <Label size="tiny">{t('politics.affirmative_votes')}</Label>
                                         <div className="text-2xl font-black text-white mt-1">{selectedProposal.yesVotes}</div>
                                     </div>
                                     <div className="text-right">
-                                        <Label size="tiny">DISSENTING VOTES</Label>
+                                        <Label size="tiny">{t('politics.dissenting_votes')}</Label>
                                         <div className="text-2xl font-black text-white mt-1">{selectedProposal.noVotes}</div>
                                     </div>
-                                </div>
-                                <div className="h-2.5 bg-slate-950 rounded-full overflow-hidden flex border border-white/5 p-0.5">
-                                    <div
-                                        className="h-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)] transition-all duration-1000 rounded-full"
-                                        style={{ width: `${(selectedProposal.yesVotes / (Math.max(1, selectedProposal.yesVotes + selectedProposal.noVotes))) * 100}%` }}
-                                    />
-                                    <div
-                                        className="h-full bg-rose-500 transition-all duration-1000 rounded-full ml-1"
-                                        style={{ width: `${(selectedProposal.noVotes / (Math.max(1, selectedProposal.yesVotes + selectedProposal.noVotes))) * 100}%` }}
-                                    />
                                 </div>
                             </div>
                         </div>
@@ -1033,13 +912,13 @@ export default function PoliticsPage() {
                         {isMounted && !selectedProposal.executed && (Date.now() / 1000) <= selectedProposal.createdAt + 86400 && (
                             <div className="mt-8 pt-8 border-t border-slate-800 flex gap-4">
                                 <ActionButton
-                                    label="VOTE AFFIRMATIVE"
+                                    label={t('politics.vote_affirmative')}
                                     variant="success"
                                     className="flex-1 h-14"
                                     onClick={() => voteOnProposal(selectedProposal.id, true)}
                                 />
                                 <ActionButton
-                                    label="VOTE DISSENT"
+                                    label={t('politics.vote_dissent')}
                                     variant="danger"
                                     className="flex-1 h-14"
                                     onClick={() => voteOnProposal(selectedProposal.id, false)}
@@ -1048,158 +927,17 @@ export default function PoliticsPage() {
                         )}
                     </Card>
                 ) : (
-                    !congressElectionData[countryId]?.active && (
-                        <div className="bg-slate-900/30 rounded-[2rem] border-2 border-dashed border-slate-800 h-full flex flex-col items-center justify-center text-center p-12">
-                            <Search size={48} className="text-slate-800 mb-6 opacity-20" />
-                            <h3 className="text-xl font-black text-slate-600 uppercase tracking-tighter">Registry Key Required</h3>
-                            <p className="text-[10px] text-slate-700 font-bold uppercase tracking-[0.2em] mt-2">Select a motion from the queue to review legislative telemetry.</p>
-                        </div>
-                    )
+                    <div className="bg-slate-900/30 rounded-[2rem] border-2 border-dashed border-slate-800 h-full flex flex-col items-center justify-center text-center p-12">
+                        <Search size={48} className="text-slate-800 mb-6 opacity-20" />
+                        <h3 className="text-xl font-black text-slate-600 uppercase tracking-tighter">{t('politics.registry_key_required')}</h3>
+                        <p className="text-[10px] text-slate-700 font-bold uppercase tracking-[0.2em] mt-2">{t('politics.review_telemetry')}</p>
+                    </div>
                 )}
             </div>
         </motion.div>
     );
 
-    const renderVoterHub = () => (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="grid grid-cols-12 gap-6"
-        >
-            {/* Sidebar: Candidates List */}
-            <div className="col-span-12 lg:col-span-4 space-y-4">
-                <div className="flex items-center justify-between px-2">
-                    <Label size="small">Verified Candidates</Label>
-                    {currentCountryData?.electionActive && user.level >= 10 && (
-                        <button
-                            className="text-[9px] font-black text-cyan-400 hover:text-cyan-300 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                            onClick={() => registerAsCandidate(countryId)}
-                        >
-                            <UserPlus size={14} /> FILE CANDIDACY (10K CRED FEE)
-                        </button>
-                    )}
-                </div>
 
-                <ul className="space-y-3 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
-                    {candidates.length === 0 ? (
-                        <EmptyState
-                            title="Registry Empty"
-                            description="No citizens have filed for executive candidacy in the current cycle."
-                            icon={<Users size={32} className="opacity-10" />}
-                        />
-                    ) : (
-                        candidates.map((candidate, idx) => (
-                            <ListItem
-                                key={candidate.address}
-                                selected={selectedCandidateAddr === candidate.address}
-                                onClick={() => setSelectedCandidateAddr(candidate.address)}
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center border transition-colors ${selectedCandidateAddr === candidate.address ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-500'}`}>
-                                            <span className="font-mono font-black">#{idx + 1}</span>
-                                        </div>
-                                        <div>
-                                            <div className="text-xs font-black text-white uppercase tracking-tight">{candidate.username}</div>
-                                            <div className="text-[9px] text-slate-500 font-mono mt-0.5 tracking-wider">
-                                                {candidate.address.slice(0, 16)}...
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="text-right">
-                                        <div className={`text-sm font-black ${selectedCandidateAddr === candidate.address ? 'text-cyan-400' : 'text-white'}`}>{candidate.votes}</div>
-                                        <div className="text-[8px] text-slate-600 font-black uppercase">VOTES</div>
-                                    </div>
-                                </div>
-                            </ListItem>
-                        ))
-                    )}
-                </ul>
-            </div>
-
-            {/* Right Side: Election Terminal */}
-            <div className="col-span-12 lg:col-span-8">
-                {selectedCandidate ? (
-                    <Card variant="default" className="bg-slate-950/40 border-slate-800 h-full p-8 flex flex-col">
-                        <div className="flex justify-between items-start mb-12">
-                            <div className="flex items-start gap-6">
-                                <div className="w-20 h-20 bg-slate-900 rounded-2xl border border-slate-700 flex items-center justify-center shadow-xl">
-                                    <UserCircle size={48} className="text-slate-700" />
-                                </div>
-                                <div className="pt-2">
-                                    <h2 className="text-3xl font-black text-white uppercase tracking-tighter leading-none mb-2">{selectedCandidate.username}</h2>
-                                    <div className="flex items-center gap-3">
-                                        <Badge variant="cyan">Verified Citizen</Badge>
-                                        <span className="text-[10px] font-mono text-slate-500 font-bold uppercase tracking-widest">{selectedCandidate.address}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="text-right">
-                                <Label size="tiny">Secured Support</Label>
-                                <div className="text-4xl font-black text-cyan-400 leading-none mt-1">{selectedCandidate.votes}</div>
-                            </div>
-                        </div>
-
-                        <div className="flex-1">
-                            <div className="block mb-6"><Label size="tiny">CANDIDATE ELIGIBILITY AUDIT</Label></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Strength Output</span>
-                                    <span className={`text-xs font-black ${(selectedCandidate.strength || 0) >= 250 ? 'text-cyan-400' : 'text-rose-500'}`}>
-                                        {selectedCandidate.strength || 0} / 250
-                                    </span>
-                                </div>
-                                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Candidacy Fee</span>
-                                    <Badge variant="emerald">PAID</Badge>
-                                </div>
-                                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Registry ID Check</span>
-                                    <Badge variant="emerald">VERIFIED</Badge>
-                                </div>
-                                <div className="p-4 bg-slate-900/60 rounded-xl border border-slate-800 flex justify-between items-center">
-                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Term Limitation</span>
-                                    <Badge variant="emerald">ELIGIBLE</Badge>
-                                </div>
-                            </div>
-                        </div>
-
-                        {currentCountryData?.electionActive && (
-                            <div className="mt-auto pt-8 border-t border-slate-800">
-                                <ActionButton
-                                    label="COMMIT BALLOT"
-                                    variant="primary"
-                                    className="h-14"
-                                    icon={<ArrowRightCircle size={18} />}
-                                    onClick={() => {
-                                        const idx = candidates.findIndex(c => c.address === selectedCandidate.address);
-                                        voteForCandidate(countryId, idx);
-                                    }}
-                                />
-                                <p className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] mt-4 text-center">Caution: Ballot commitment is irreversible and secured by chain protocol.</p>
-                            </div>
-                        )}
-                    </Card>
-                ) : (
-                    <div className="bg-slate-900/30 rounded-[2rem] border-2 border-dashed border-slate-800 h-full flex flex-col items-center justify-center text-center p-12">
-                        {currentCountryData?.electionActive ? (
-                            <>
-                                <Vote size={48} className="text-slate-800 mb-6 opacity-20" />
-                                <h3 className="text-xl font-black text-slate-600 uppercase tracking-tighter">Election Terminal Live</h3>
-                                <p className="text-[10px] text-slate-700 font-bold uppercase tracking-[0.2em] mt-2">Cycle ends in 18:42:05. Select a candidate to review their platform.</p>
-                            </>
-                        ) : (
-                            <>
-                                <Clock size={48} className="text-slate-800 mb-6 opacity-20" />
-                                <h3 className="text-xl font-black text-slate-600 uppercase tracking-tighter">Ballot Registry Offline</h3>
-                                <p className="text-[10px] text-slate-700 font-bold uppercase tracking-[0.2em] mt-2">Next election cycle pending governance protocol initialization.</p>
-                            </>
-                        )}
-                    </div>
-                )}
-            </div>
-        </motion.div >
-    );
 
     const renderAdmin = () => (
         <motion.div
@@ -1211,17 +949,17 @@ export default function PoliticsPage() {
                 <Card className="p-6 space-y-4">
                     <div className="flex items-center gap-3 text-cyan-400 mb-2">
                         <Flag size={20} />
-                        <h3 className="font-black uppercase tracking-tighter">Foundation Setup</h3>
+                        <h3 className="font-black uppercase tracking-tighter">{t('politics.foundation_setup')}</h3>
                     </div>
                     <p className="text-[10px] text-slate-500 font-bold uppercase leading-relaxed">
-                        Initialize governance registry and setup default country parameters across all sectors.
+                        {t('politics.setup_intro')}
                     </p>
                     <ActionButton
-                        label="INITIALIZE GOVERNANCE"
+                        label={t('politics.initialize_governance')}
                         variant="primary"
                         className="w-full"
                         onClick={async () => {
-                            if (confirm("Initialize governance for all 10 countries?")) {
+                            if (confirm(t('politics.start_election_confirm'))) {
                                 await (useGameStore.getState() as any).initializeGovernance();
                             }
                         }}
@@ -1231,20 +969,20 @@ export default function PoliticsPage() {
                 <Card className="p-6 space-y-4">
                     <div className="flex items-center gap-3 text-amber-500 mb-2">
                         <Vote size={20} />
-                        <h3 className="font-black uppercase tracking-tighter">Election Controller</h3>
+                        <h3 className="font-black uppercase tracking-tighter">{t('politics.election_controller')}</h3>
                     </div>
                     <p className="text-[10px] text-slate-500 font-bold uppercase leading-relaxed">
-                        Manually trigger or finalize presidential election cycles for the current sector.
+                        {t('politics.election_controller_intro')}
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                         <ActionButton
-                            label="START ELECTION"
+                            label={t('politics.start_election_action')}
                             variant="primary"
                             className="bg-slate-800"
                             onClick={() => (useGameStore.getState() as any).startElection(countryId)}
                         />
                         <ActionButton
-                            label="END ELECTION"
+                            label={t('politics.end_election_action')}
                             variant="primary"
                             className="bg-slate-800"
                             onClick={() => (useGameStore.getState() as any).endElection(countryId)}
@@ -1255,16 +993,16 @@ export default function PoliticsPage() {
                 <Card className="p-6 space-y-4">
                     <div className="flex items-center gap-3 text-emerald-500 mb-2">
                         <Users size={20} />
-                        <h3 className="font-black uppercase tracking-tighter">Authority Management</h3>
+                        <h3 className="font-black uppercase tracking-tighter">{t('politics.authority_management')}</h3>
                     </div>
                     <p className="text-[10px] text-slate-500 font-bold uppercase leading-relaxed">
-                        Directly appoint operatives to executive and legislative branches for protocol verification.
+                        {t('politics.authority_management_intro')}
                     </p>
                     <div className="space-y-2">
                         <ActionButton
-                            label="APPOINT SELF AS PRESIDENT"
+                            label={t('politics.appoint_president_self')}
                             variant="primary"
-                            className="w-full bg-cyan-600 hover:bg-cyan-500"
+                            className="bg-cyan-600 hover:bg-cyan-500 w-full"
                             onClick={async () => {
                                 if (user?.address) {
                                     await (useGameStore.getState() as any).appointPresident(countryId, user.address);
@@ -1272,7 +1010,7 @@ export default function PoliticsPage() {
                             }}
                         />
                         <ActionButton
-                            label="APPOINT SELF TO CONGRESS"
+                            label={t('politics.appoint_congress_self')}
                             variant="success"
                             className="w-full"
                             onClick={async () => {
@@ -1291,20 +1029,20 @@ export default function PoliticsPage() {
                         <Shield className="text-red-500" size={24} />
                     </div>
                     <div>
-                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">Protocol Override Terminal</h3>
-                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">High-level administrative command interface.</p>
+                        <h3 className="text-xl font-black text-white uppercase tracking-tighter">{t('politics.protocol_override')}</h3>
+                        <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1">{t('politics.admin_interface')}</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800">
-                        <Label size="tiny">System Status</Label>
+                        <Label size="tiny">{t('politics.system_status')}</Label>
                         <div className="flex items-center gap-2 mt-2">
                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-xs font-black text-white uppercase tracking-widest leading-none">Admin Telemetry Active</span>
+                            <span className="text-xs font-black text-white uppercase tracking-widest leading-none">{t('politics.admin_telemetry')}</span>
                         </div>
                     </div>
                     <div className="p-4 bg-slate-950/40 rounded-xl border border-slate-800">
-                        <Label size="tiny">Active Operative</Label>
+                        <Label size="tiny">{t('politics.active_operative')}</Label>
                         <div className="text-xs font-mono text-cyan-400 mt-2 truncate">
                             {user?.address}
                         </div>
@@ -1322,11 +1060,11 @@ export default function PoliticsPage() {
             <Modal
                 isOpen={isActionModalOpen}
                 onClose={() => setIsActionModalOpen(false)}
-                title="Economic Directive"
+                title={t('politics.economic_directive')}
             >
                 <div className="space-y-6">
                     <div>
-                        <Label size="tiny">Target Sector</Label>
+                        <Label size="tiny">{t('politics.target_sector')}</Label>
                         <div className="flex gap-2 mt-2">
                             {taxLabels.map((lbl, idx) => (
                                 <button
@@ -1334,7 +1072,7 @@ export default function PoliticsPage() {
                                     onClick={() => setAdjustmentType(idx)}
                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${adjustmentType === idx ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-slate-300'}`}
                                 >
-                                    {lbl}
+                                    {t(`politics.${lbl.toLowerCase().replace(' ', '_')}`)}
                                 </button>
                             ))}
                         </div>
@@ -1347,9 +1085,9 @@ export default function PoliticsPage() {
                         >
                             <div className="flex items-center gap-2 mb-2">
                                 <Activity size={14} className={adjustmentMethod === 'decree' ? 'text-cyan-400' : 'text-slate-500'} />
-                                <span className="text-[10px] font-black uppercase text-white">Decree</span>
+                                <span className="text-[10px] font-black uppercase text-white">{t('politics.decree')}</span>
                             </div>
-                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-relaxed">Immediate effect. Strictly limited range (5-20%).</p>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-relaxed">{t('politics.decree_intro')}</p>
                         </button>
 
                         <button
@@ -1358,15 +1096,15 @@ export default function PoliticsPage() {
                         >
                             <div className="flex items-center gap-2 mb-2">
                                 <Gavel size={14} className={adjustmentMethod === 'proposal' ? 'text-emerald-400' : 'text-slate-500'} />
-                                <span className="text-[10px] font-black uppercase text-white">Proposal</span>
+                                <span className="text-[10px] font-black uppercase text-white">{t('politics.proposal')}</span>
                             </div>
-                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-relaxed">Legislative vote. Flexible range (0-100%).</p>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight leading-relaxed">{t('politics.proposal_intro')}</p>
                         </button>
                     </div>
 
                     <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800">
                         <div className="flex justify-between items-center mb-4">
-                            <Label size="tiny">Target Rate</Label>
+                            <Label size="tiny">{t('politics.target_rate')}</Label>
                             <div className="text-xl font-mono font-black text-white">{adjustmentRate}%</div>
                         </div>
                         <input
@@ -1378,9 +1116,9 @@ export default function PoliticsPage() {
                             className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
                         />
                         <div className="flex justify-between mt-2">
-                            <span className="text-[8px] text-slate-600 font-black uppercase">Low</span>
-                            <span className="text-[8px] text-slate-600 font-black uppercase">Neutral</span>
-                            <span className="text-[8px] text-slate-600 font-black uppercase">High</span>
+                            <span className="text-[8px] text-slate-600 font-black uppercase">{t('politics.low')}</span>
+                            <span className="text-[8px] text-slate-600 font-black uppercase">{t('politics.neutral')}</span>
+                            <span className="text-[8px] text-slate-600 font-black uppercase">{t('politics.high')}</span>
                         </div>
                     </div>
 
@@ -1388,7 +1126,7 @@ export default function PoliticsPage() {
                         <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg flex items-center gap-3">
                             <AlertCircle size={16} className="text-red-500 shrink-0" />
                             <p className="text-[9px] text-red-500 font-bold uppercase leading-tight">
-                                Range Violation: Decrees are strictly regulated between 5% and 20%.
+                                {t('politics.range_violation')}
                             </p>
                         </div>
                     )}
@@ -1398,14 +1136,14 @@ export default function PoliticsPage() {
                             onClick={() => setIsActionModalOpen(false)}
                             className="flex-1 px-4 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors"
                         >
-                            Cancel
+                            {t('politics.abort')}
                         </button>
                         <button
                             disabled={isInvalidDecree || isSubmitting}
                             onClick={confirmAction}
                             className={`flex-1 px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isInvalidDecree || isSubmitting ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]'}`}
                         >
-                            {isSubmitting ? 'Processing...' : adjustmentMethod === 'decree' ? 'Issue Decree' : 'Submit Proposal'}
+                            {isSubmitting ? t('politics.processing') : adjustmentMethod === 'decree' ? t('politics.issue_decree') : t('politics.submit_proposal')}
                         </button>
                     </div>
                 </div>
@@ -1426,13 +1164,13 @@ export default function PoliticsPage() {
             <Modal
                 isOpen={isWarModalOpen}
                 onClose={() => setIsWarModalOpen(false)}
-                title={isResistance ? "Liberation Protocol: Freedom Fighters" : "Strategic Command: Declare War"}
+                title={isResistance ? t('politics.liberation_protocol') : t('politics.strategic_command')}
             >
                 <div className="space-y-6">
                     {/* Method Selection (Only for Presidential Decree/Proposal) */}
                     {!isResistance && (
                         <div>
-                            <Label size="tiny">Authorization Method</Label>
+                            <Label size="tiny">{t('politics.authorization_method')}</Label>
                             <div className="grid grid-cols-2 gap-3 mt-2">
                                 <button
                                     onClick={() => setWarMethod('decree')}
@@ -1440,9 +1178,9 @@ export default function PoliticsPage() {
                                 >
                                     <div className="flex items-center gap-2 mb-1">
                                         <Shield size={14} className={warMethod === 'decree' ? 'text-red-400' : 'text-slate-500'} />
-                                        <span className="text-[9px] font-black uppercase text-white">Direct Decree</span>
+                                        <span className="text-[9px] font-black uppercase text-white">{t('politics.direct_decree')}</span>
                                     </div>
-                                    <p className="text-[8px] text-slate-500 font-bold uppercase leading-tight">Presidential action. Immediate declaration. Cost: 1M CRED.</p>
+                                    <p className="text-[8px] text-slate-500 font-bold uppercase leading-tight">{t('politics.presidential_action')}</p>
                                 </button>
 
                                 <button
@@ -1451,9 +1189,9 @@ export default function PoliticsPage() {
                                 >
                                     <div className="flex items-center gap-2 mb-1">
                                         <Gavel size={14} className={warMethod === 'proposal' ? 'text-emerald-400' : 'text-slate-500'} />
-                                        <span className="text-[9px] font-black uppercase text-white">Congress Proposal</span>
+                                        <span className="text-[9px] font-black uppercase text-white">{t('politics.congress_proposal')}</span>
                                     </div>
-                                    <p className="text-[8px] text-slate-500 font-bold uppercase leading-tight">Legislative vote. 24h voting period. Cost: 800K CRED.</p>
+                                    <p className="text-[8px] text-slate-500 font-bold uppercase leading-tight">{t('politics.legislative_vote_note')}</p>
                                 </button>
                             </div>
                         </div>
@@ -1461,7 +1199,7 @@ export default function PoliticsPage() {
 
                     {/* Country Selection */}
                     <div>
-                        <Label size="tiny">{isResistance ? "Federation to Liberate From" : "Target Federation"}</Label>
+                        <Label size="tiny">{isResistance ? t('politics.federation_to_liberate') : t('politics.target_federation')}</Label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
                             {targetCountries.map(cid => (
                                 <button
@@ -1486,7 +1224,7 @@ export default function PoliticsPage() {
                             animate={{ opacity: 1, y: 0 }}
                             className="space-y-3"
                         >
-                            <Label size="tiny">Select Target Region</Label>
+                            <Label size="tiny">{t('politics.target_region_select')}</Label>
                             <div className="grid grid-cols-1 gap-2">
                                 {countryRegions.length > 0 ? (
                                     countryRegions.map(region => (
@@ -1501,7 +1239,7 @@ export default function PoliticsPage() {
                                                 </div>
                                                 <div className="text-left">
                                                     <div className="text-[10px] font-black text-white uppercase">{region.name}</div>
-                                                    <div className="text-[8px] text-slate-500 font-bold uppercase">Region ID: {region.id}</div>
+                                                    <div className="text-[8px] text-slate-500 font-bold uppercase">{t('politics.region_id', { id: region.id })}</div>
                                                 </div>
                                             </div>
                                             {warTargetRegion === region.id && (
@@ -1511,7 +1249,7 @@ export default function PoliticsPage() {
                                     ))
                                 ) : (
                                     <div className="p-4 bg-slate-950/50 rounded-xl border border-dashed border-slate-800 text-center">
-                                        <p className="text-[10px] text-slate-500 font-bold uppercase">No targetable regions found</p>
+                                        <p className="text-[10px] text-slate-500 font-bold uppercase">{t('politics.no_targetable_regions')}</p>
                                     </div>
                                 )}
                             </div>
@@ -1522,13 +1260,13 @@ export default function PoliticsPage() {
                     <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-2">
                         <div className="flex items-center gap-2 text-red-500">
                             <AlertCircle size={14} />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Operational Alert</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">{t('politics.operational_alert')}</span>
                         </div>
                         <p className="text-[9px] text-slate-400 font-bold uppercase leading-relaxed">
                             {isResistance ? (
-                                <>Warning: Starting a resistance war costs <span className="text-white">250,000 CRED</span> from your account. Guerilla units will be mobilized immediately.</>
+                                <>{t('politics.resistance_warning', { cost: '250,000' })}</>
                             ) : (
-                                <>Warning: War declaration will burn <span className="text-white">{warMethod === 'decree' ? '1,000,000' : '800,000'} CRED</span> from the national treasury. Mobilization will follow {warMethod === 'decree' ? 'IMMEDIATELY' : 'after congressional approval'}.</>
+                                <>{t('politics.war_warning', { cost: warMethod === 'decree' ? '1,000,000' : '800,000', timing: warMethod === 'decree' ? t('politics.immediate') : t('politics.after_approval') })}</>
                             )}
                         </p>
                     </div>
@@ -1539,7 +1277,7 @@ export default function PoliticsPage() {
                             onClick={() => setIsWarModalOpen(false)}
                             className="flex-1 px-4 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors"
                         >
-                            Aborted
+                            {t('politics.aborted')}
                         </button>
                         <button
                             disabled={!warTargetCountry || !warTargetRegion || isSubmitting}
@@ -1563,7 +1301,7 @@ export default function PoliticsPage() {
                             }}
                             className={`flex-1 px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!warTargetCountry || !warTargetRegion || isSubmitting ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-500 shadow-[0_0_20px_rgba(220,38,38,0.3)]'}`}
                         >
-                            {isSubmitting ? 'Commanding...' : isResistance ? 'Start Revolution' : warMethod === 'decree' ? 'Confirm Mobilization' : 'Submit Proposal'}
+                            {isSubmitting ? t('politics.commanding') : isResistance ? t('politics.start_revolution') : warMethod === 'decree' ? t('politics.confirm_mobilization') : t('politics.submit_proposal')}
                         </button>
                     </div>
                 </div>
@@ -1576,17 +1314,17 @@ export default function PoliticsPage() {
             <Modal
                 isOpen={isDonationModalOpen}
                 onClose={() => setIsDonationModalOpen(false)}
-                title="Patriotic Contribution: Donate CRED"
+                title={t('politics.patriotic_contribution')}
             >
                 <div className="space-y-6">
                     <div className="p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-xl">
                         <p className="text-[10px] text-slate-400 font-bold uppercase leading-relaxed text-center">
-                            Your donation will be deposited into the <span className="text-white">National Treasury</span> to fund expansion, infrastructure, and defense.
+                            {t('politics.donation_note')}
                         </p>
                     </div>
 
                     <div className="space-y-4">
-                        <Label size="tiny">Donation Amount (CRED)</Label>
+                        <Label size="tiny">{t('politics.donation_amount')}</Label>
                         <div className="grid grid-cols-3 gap-2">
                             {[1000, 5000, 10000].map(amt => (
                                 <button
@@ -1600,9 +1338,10 @@ export default function PoliticsPage() {
                         </div>
                         <Input
                             type="number"
+                            autoComplete="off"
                             value={donationAmount}
                             onChange={(e) => setDonationAmount(Number(e.target.value))}
-                            placeholder="Custom Amount"
+                            placeholder={t('common.custom_amount', {}, 'Custom Amount')}
                         />
                     </div>
 
@@ -1611,7 +1350,7 @@ export default function PoliticsPage() {
                             onClick={() => setIsDonationModalOpen(false)}
                             className="flex-1 px-4 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors"
                         >
-                            Cancel
+                            {t('politics.abort')}
                         </button>
                         <button
                             disabled={donationAmount <= 0 || isSubmitting}
@@ -1628,7 +1367,7 @@ export default function PoliticsPage() {
                             }}
                             className={`flex-1 px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${donationAmount <= 0 || isSubmitting ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-cyan-500 text-slate-950 hover:bg-cyan-400 shadow-[0_0_20px_rgba(6,182,212,0.3)]'}`}
                         >
-                            {isSubmitting ? 'Sending...' : 'Confirm Donation'}
+                            {isSubmitting ? t('common.sending', {}, 'Sending...') : t('politics.confirm_donation')}
                         </button>
                     </div>
                 </div>
@@ -1647,12 +1386,11 @@ export default function PoliticsPage() {
                 />
             </div>
 
-            {/* Viewport */}
             <div className="min-h-[650px]">
                 <AnimatePresence mode="wait">
                     {activeTab === 'leadership' && renderLeadership()}
                     {activeTab === 'congress' && renderCongress()}
-                    {activeTab === 'voter-hub' && renderVoterHub()}
+                    {activeTab === 'alliances' && renderAlliances()}
                     {activeTab === 'admin' && renderAdmin()}
                 </AnimatePresence>
             </div>
@@ -1661,53 +1399,64 @@ export default function PoliticsPage() {
             {renderGovModal()}
             {renderWarModal()}
             {renderDonationModal()}
+            {renderAllianceModal()}
         </div>
     );
 
     function renderGovModal() {
         const motionLabels: Record<number, string> = {
-            1: "Tax Amendment",
-            2: "Treasury Withdrawal",
-            4: "Impeachment",
-            5: "Minimum Wage Law",
-            6: "Congress Size Adjustment",
-            7: "Official Salary Adjustment"
+            1: t('politics.tax_amendment'),
+            2: t('politics.treasury_withdrawal', {}, 'Treasury Withdrawal'),
+            4: t('politics.impeachment'),
+            5: t('politics.min_wage_law'),
+            6: t('politics.congress_size_adjustment', {}, 'Congress Size Adjustment'),
+            7: t('politics.official_salary_adjustment', {}, 'Official Salary Adjustment')
         };
 
         return (
             <Modal
                 isOpen={isGovModalOpen}
                 onClose={() => setIsGovModalOpen(false)}
-                title={`Legislative Motion: ${motionLabels[govProposalType]}`}
+                title={t('politics.legislative_motion', { motion: motionLabels[govProposalType] })}
             >
                 <div className="space-y-6">
-                    {/* Category Selection (Only if opened from Congress tab without specific context) */}
+                    {/* Category Selection */}
                     <div>
-                        <Label size="tiny">Motion Category</Label>
+                        <Label size="tiny">{t('politics.motion_category')}</Label>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-                            {[1, 2, 5, 6, 7].map(type => (
-                                <button
-                                    key={type}
-                                    onClick={() => {
-                                        setGovProposalType(type);
-                                        // Reset values based on type
-                                        if (type === 1) setGovTargetValue(10);
-                                        if (type === 2) setGovTargetValue(1000);
-                                        if (type === 5) setGovTargetValue((countryGovernance[countryId!]?.minWage || 0) / 100);
-                                        if (type === 6) setGovTargetValue(7);
-                                        if (type === 7) setGovTargetValue((countryGovernance[countryId!]?.presSalary || 0) / 100);
-                                    }}
-                                    className={`px-2 py-2 rounded-lg text-[8px] font-black uppercase border transition-all ${govProposalType === type ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'}`}
-                                >
-                                    {motionLabels[type]}
-                                </button>
-                            ))}
+                            {[1, 2, 5, 6, 7, 8, 9].map(type => {
+                                const cd = (cooldowns[countryId!] || []).find(c => c.topicType === type);
+                                const onCooldown = cd && (Date.now() / 1000) < cd.lastTime + (isPres ? 259200 : 604800);
+                                const timeLeft = cd ? Math.ceil((cd.lastTime + (isPres ? 259200 : 604800) - Date.now() / 1000) / 3600) : 0;
+
+                                return (
+                                    <button
+                                        key={type}
+                                        disabled={onCooldown}
+                                        onClick={() => {
+                                            setGovProposalType(type);
+                                            // Reset values to safe defaults based on contract constraints
+                                            if (type === 1) setGovTargetValue(10); // 10% Tax
+                                            if (type === 2) setGovTargetValue(1000); // 1000 CRED
+                                            if (type === 5) setGovTargetValue(50); // 50 CRED (Min 10)
+                                            if (type === 6) setGovTargetValue(7); // 7 members (Min 4)
+                                            if (type === 7) setGovTargetValue(100); // 100 CRED salary
+                                        }}
+                                        className={`relative px-2 py-3 rounded-lg text-[8px] font-black uppercase border transition-all ${govProposalType === type ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'} ${onCooldown ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                    >
+                                        {motionLabels[type]}
+                                        {onCooldown && (
+                                            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[6px] px-1 rounded-full font-mono">{timeLeft}h</div>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
 
                     {govProposalType === 1 && (
                         <div>
-                            <Label size="tiny">Target Tax Sector</Label>
+                            <Label size="tiny">{t('politics.target_tax_sector')}</Label>
                             <div className="flex gap-2 mt-2">
                                 {['Income', 'Import', 'VAT'].map((lbl, idx) => (
                                     <button
@@ -1715,16 +1464,28 @@ export default function PoliticsPage() {
                                         onClick={() => setGovRoleType(idx)}
                                         className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${govRoleType === idx ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}
                                     >
-                                        {lbl}
+                                        {t(`politics.${lbl.toLowerCase()}`)}
                                     </button>
                                 ))}
                             </div>
                         </div>
                     )}
 
+                    {govProposalType === 2 && (
+                        <div>
+                            <Label size="tiny">{t('politics.recipient_address')}</Label>
+                            <Input
+                                value={govTargetAddress}
+                                onChange={(e) => setGovTargetAddress(e.target.value)}
+                                placeholder="0x..."
+                                className="mt-2 text-xs font-mono"
+                            />
+                        </div>
+                    )}
+
                     {govProposalType === 7 && (
                         <div>
-                            <Label size="tiny">Target Role</Label>
+                            <Label size="tiny">{t('politics.target_role', {}, 'Target Role')}</Label>
                             <div className="flex gap-2 mt-2">
                                 {[
                                     { label: 'President', value: 0 },
@@ -1734,11 +1495,10 @@ export default function PoliticsPage() {
                                         key={role.label}
                                         onClick={() => {
                                             setGovRoleType(role.value);
-                                            setGovTargetValue(role.value === 0 ? (countryGovernance[countryId!]?.presSalary || 0) / 100 : (countryGovernance[countryId!]?.congSalary || 0) / 100);
                                         }}
-                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${govRoleType === role.value ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-700 text-slate-500 hover:text-slate-300'}`}
+                                        className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border transition-all ${govRoleType === role.value ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300'}`}
                                     >
-                                        {role.label}
+                                        {t(`politics.${role.label.toLowerCase()}`)}
                                     </button>
                                 ))}
                             </div>
@@ -1750,34 +1510,61 @@ export default function PoliticsPage() {
                         <div className="p-4 bg-slate-950/50 rounded-xl border border-slate-800">
                             <div className="flex justify-between items-center mb-4">
                                 <Label size="tiny">
-                                    {govProposalType === 1 ? "Proposed Rate (%)" :
-                                        govProposalType === 2 ? "Amount (CRED)" :
-                                            govProposalType === 6 ? "Congress Size" : "Target Amount (CRED)"}
+                                    {govProposalType === 1 ? t('politics.proposed_rate') :
+                                        govProposalType === 2 ? t('politics.amount_cred') :
+                                            govProposalType === 6 ? t('politics.congress_size_label') : t('politics.target_amount_cred')}
                                 </Label>
                                 <div className="text-xl font-mono font-black text-white">
                                     {govTargetValue.toLocaleString()}{govProposalType === 1 ? "%" : ""}
                                 </div>
                             </div>
-                            <input
-                                type="range"
-                                min={govProposalType === 6 ? 1 : 0}
-                                max={govProposalType === 1 ? 100 : (govProposalType === 2 ? 1000000 : 10000)}
-                                step={govProposalType === 6 ? 1 : 10}
-                                value={govTargetValue}
-                                onChange={(e) => setGovTargetValue(parseInt(e.target.value))}
-                                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
-                            />
+                            <div className="space-y-2">
+                                <input
+                                    type="range"
+                                    min={
+                                        govProposalType === 1 ? 0 :
+                                            govProposalType === 5 ? 10 :
+                                                govProposalType === 6 ? 4 : 0
+                                    }
+                                    max={
+                                        govProposalType === 1 ? 100 :
+                                            govProposalType === 2 ? Math.floor(countryBalance / 100) :
+                                                govProposalType === 6 ? 25 : 1000
+                                    }
+                                    step={
+                                        (govProposalType === 6 || govProposalType === 1) ? 1 : 5
+                                    }
+                                    value={govTargetValue}
+                                    onChange={(e) => setGovTargetValue(parseInt(e.target.value))}
+                                    className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                                />
+                                <div className="flex justify-between items-center px-1">
+                                    <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">
+                                        {t('politics.min')}: {
+                                            govProposalType === 1 ? "0%" :
+                                                govProposalType === 5 ? `10 ${t('common.cred', {}, 'CRED')}` :
+                                                    govProposalType === 6 ? `4 ${t('common.seats', {}, 'SEATS')}` : `0 ${t('common.cred', {}, 'CRED')}`
+                                        }
+                                    </span>
+                                    <span className="text-[7px] font-black text-slate-600 uppercase tracking-tighter">
+                                        {t('politics.max')}: {
+                                            govProposalType === 1 ? "100%" :
+                                                govProposalType === 2 ? `${Math.floor(countryBalance / 100).toLocaleString()} ${t('common.cred', {}, 'CRED')}` :
+                                                    govProposalType === 6 ? `25 ${t('common.seats', {}, 'SEATS')}` : `1,000 ${t('common.cred', {}, 'CRED')}`
+                                        }
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-xl space-y-2">
                         <div className="flex items-center gap-2 text-emerald-500">
                             <Gavel size={14} />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Legislative Protocol active</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest">{t('politics.protocol_active')}</span>
                         </div>
                         <p className="text-[9px] text-slate-400 font-bold uppercase leading-relaxed">
-                            This motion requires a 51% majority vote from Congress within a 24-hour cycle.
-                            Unauthorized attempts will be blocked by the protocol core.
+                            {t('politics.majority_required')}
                         </p>
                     </div>
 
@@ -1786,19 +1573,19 @@ export default function PoliticsPage() {
                             onClick={() => setIsGovModalOpen(false)}
                             className="flex-1 px-4 py-3 bg-slate-800 rounded-xl text-[10px] font-black uppercase text-slate-400 hover:text-white transition-colors"
                         >
-                            Abort
+                            {t('politics.abort')}
                         </button>
                         <button
                             disabled={isSubmitting}
                             onClick={async () => {
                                 setIsSubmitting(true);
                                 try {
-                                    let args: number[] = [];
-                                    if (govProposalType === 1) args = [govRoleType, govTargetValue];
-                                    else if (govProposalType === 2) args = [govTargetValue * 100];
-                                    else if (govProposalType === 5) args = [govTargetValue * 100];
-                                    else if (govProposalType === 6) args = [govTargetValue];
-                                    else if (govProposalType === 7) args = [govRoleType, govTargetValue * 100];
+                                    const args = packProposalData(
+                                        govProposalType,
+                                        govTargetValue,
+                                        govTargetAddress,
+                                        govRoleType
+                                    );
 
                                     await createProposal(countryId!, govProposalType, args);
                                     fetchProposals();
@@ -1811,7 +1598,7 @@ export default function PoliticsPage() {
                             }}
                             className={`flex-1 px-4 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isSubmitting ? 'bg-slate-800 text-slate-600 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}
                         >
-                            {isSubmitting ? 'Commanding...' : 'Initiate Vote'}
+                            {isSubmitting ? t('politics.commanding') : t('politics.initiate_vote_action')}
                         </button>
                     </div>
                 </div>

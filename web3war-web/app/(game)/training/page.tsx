@@ -6,9 +6,11 @@ import { Target, Shield, Flame, TrendingUp, Sword, Clock, Trophy } from 'lucide-
 import { useGameStore } from '@/lib/store';
 import { IDSCard, IDSStatBox, IDSLabel } from '@/components/ui/ids';
 import { motion } from 'framer-motion';
+import { useTranslation } from '@/lib/i18n';
 
 export default function TrainingPage() {
     const { user, fetchTraining, facilities } = useGameStore();
+    const { t } = useTranslation();
 
     useEffect(() => {
         fetchTraining();
@@ -28,7 +30,7 @@ export default function TrainingPage() {
                         <Flame size={28} />
                     </div>
                     <div className="flex-1">
-                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Global Rank Progress</div>
+                        <div className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">{t('training.global_rank_progress')}</div>
                         <div className="flex items-center gap-4">
                             <span className="text-2xl font-black text-white font-mono">{user?.strength?.toFixed(2)}</span>
                             <div className="flex-1 h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-700/50 relative shadow-inner">
@@ -46,8 +48,8 @@ export default function TrainingPage() {
 
                 <div className="flex items-center gap-4 px-6 py-3 bg-slate-900/50 rounded-2xl border border-slate-700/30 min-w-[220px]">
                     <div className="text-right flex-1">
-                        <div className="text-[10px] text-slate-500 font-black uppercase mb-1">Daily Training</div>
-                        <div className="text-sm font-black text-cyan-400">Available Now</div>
+                        <div className="text-[10px] text-slate-500 font-black uppercase mb-1">{t('training.daily_training')}</div>
+                        <div className="text-sm font-black text-cyan-400">{t('training.available_now')}</div>
                     </div>
                     <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center text-cyan-400 border border-cyan-500/20">
                         <Clock size={20} />
@@ -66,10 +68,9 @@ export default function TrainingPage() {
                     <Trophy size={20} />
                 </div>
                 <div>
-                    <h4 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-1.5">Commander's Tip</h4>
+                    <h4 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.2em] mb-1.5">{t('training.commanders_tip')}</h4>
                     <p className="text-xs text-slate-400 leading-relaxed font-medium">
-                        Training is vital for your success on the battlefield. Higher strength increases your influence in wars and maximizes damage per energy hit.
-                        Invest in multiple regimens to fast-track your progression to the Top 100 global leaderboard.
+                        {t('training.tip_text')}
                     </p>
                 </div>
             </div>
@@ -77,30 +78,30 @@ export default function TrainingPage() {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
                 <IDSStatBox
-                    label="Total Strength"
+                    label={t('training.total_strength')}
                     value={(user?.strength || 0).toFixed(2)}
                     unit="STR"
                     icon={<Flame size={14} className="text-red-500" />}
-                    subValue="▲ Top 15% in your country"
+                    subValue={t('training.top_percent')}
                     color="text-white font-black"
                     className="bg-slate-900/40 border-slate-700/30"
                 />
 
                 <IDSStatBox
-                    label="Training Level"
+                    label={t('training.training_level')}
                     value={Math.floor((user?.strength || 0) / 10) + 1}
                     unit="LVL"
                     icon={<TrendingUp size={14} className="text-amber-400" />}
-                    subValue="Unlocks Elite at Lvl 5"
+                    subValue={t('training.unlocks_elite')}
                     color="text-white font-black"
                     className="bg-slate-900/40 border-slate-700/30"
                 />
 
                 <IDSStatBox
-                    label="Battle Proficiency"
+                    label={t('training.battle_proficiency')}
                     value={`${((user?.level || 1) * 2.5).toFixed(1)}%`}
                     icon={<Sword size={14} className="text-red-500" />}
-                    subValue="Passive damage bonus applied"
+                    subValue={t('training.passive_bonus')}
                     color="text-white font-black"
                     className="bg-slate-900/40 border-slate-700/30"
                 />

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Newspaper, ThumbsUp, MessageSquare, Eye, TrendingUp, PenTool, ChevronRight } from 'lucide-react';
 import { useGameStore } from '@/lib/store';
 import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
+import { TacticalAvatar } from './TacticalAvatar';
+import { useTranslation } from '@/lib/i18n';
 
 interface Article {
     id: number;
@@ -36,6 +38,7 @@ const CATEGORY_ICONS = [
 
 export function NewspaperWidget() {
     const { user } = useGameStore();
+    const { t } = useTranslation();
     const [articles] = useState(MOCK_ARTICLES);
     const countryCode = (Object.keys(COUNTRY_IDS) as CountryId[]).find(k => COUNTRY_IDS[k] === user?.countryId) || 'TR' as CountryId;
     const countryInfo = user ? COUNTRY_CONFIG[countryCode] : null;
@@ -46,19 +49,25 @@ export function NewspaperWidget() {
             <div className="px-4 py-3 border-b border-slate-700/50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Newspaper size={16} className="text-cyan-400" />
-                    <h3 className="font-bold text-white text-sm">Top Rated Articles</h3>
-                    <span className="text-xs text-slate-400">in</span>
+                    <h3 className="font-bold text-white text-sm">{t('newspaper_widget.top_rated')}</h3>
+                    <span className="text-xs text-slate-400">{t('newspaper_widget.in')}</span>
                     <div className="flex items-center gap-1.5">
                         {countryInfo ? (
                             <img src={countryInfo.flag} className="w-4 h-2.5 object-cover rounded shadow-sm" alt={countryInfo.name} />
                         ) : (
                             <span>🌍</span>
                         )}
-                        <span className="text-xs font-bold text-red-400 uppercase">{countryInfo?.name || 'Global'}</span>
+                        <span className="text-xs font-bold text-red-400 uppercase">{countryInfo?.name || t('newspaper_widget.global')}</span>
                     </div>
                 </div>
                 <button className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1">
-                    <PenTool size={12} /> Write Article
+                    <PenTool size={12} /> {t('newspaper_widget.write_article')}
+                </button>
+            </div>
+
+            <div className="px-4 py-2 border-t border-slate-700/50 text-center">
+                <button className="text-xs text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 mx-auto">
+                    {t('newspaper_widget.military_campaigns')} <ChevronRight size={12} />
                 </button>
             </div>
 
@@ -83,11 +92,11 @@ export function NewspaperWidget() {
                     >
                         <div className="flex items-start gap-3">
                             {/* Author Avatar */}
-                            <div className="w-10 h-10 bg-slate-700 rounded-lg overflow-hidden border border-slate-600 flex-shrink-0">
-                                <img
-                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${article.authorAvatar}`}
-                                    alt={article.author}
-                                    className="w-full h-full"
+                            <div className="w-10 h-10 bg-slate-900 rounded-lg overflow-hidden border border-slate-700 flex-shrink-0 flex items-center justify-center">
+                                <TacticalAvatar
+                                    seed={article.authorAvatar}
+                                    size={40}
+                                    showBackground={false}
                                 />
                             </div>
 
@@ -99,17 +108,17 @@ export function NewspaperWidget() {
                                 <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
                                     <span className="text-cyan-400 font-medium">{article.author}</span>
                                     <span>•</span>
-                                    <div className="flex items-center gap-1">
-                                        <ThumbsUp size={10} />
-                                        {article.votes}
+                                    <div className="flex items-center gap-1 text-[9px] text-slate-500 font-medium">
+                                        <span>{article.author}</span>
+                                        <span className="opacity-30">•</span>
+                                        <ThumbsUp size={10} className="opacity-50" />
+                                        <span>{article.votes}</span>
+                                        <span className="opacity-30">•</span>
+                                        <MessageSquare size={10} className="opacity-50" />
+                                        <span>{article.comments}</span>
+                                        <span className="opacity-30">•</span>
+                                        <span>{t('newspaper_widget.day_label', { day: article.day })}</span>
                                     </div>
-                                    <span>•</span>
-                                    <div className="flex items-center gap-1">
-                                        <MessageSquare size={10} />
-                                        {article.comments}
-                                    </div>
-                                    <span>•</span>
-                                    <span>Day {article.day}</span>
                                 </div>
                             </div>
 
@@ -130,10 +139,10 @@ export function NewspaperWidget() {
             {/* Footer */}
             <div className="px-4 py-3 border-t border-slate-700/50 flex items-center justify-between">
                 <button className="text-xs text-slate-400 hover:text-white transition-colors">
-                    more news ▸
+                    {t('newspaper_widget.more_news')}
                 </button>
                 <button className="text-xs text-cyan-400 hover:text-cyan-300 font-bold">
-                    See all
+                    {t('newspaper_widget.see_all')}
                 </button>
             </div>
         </div>

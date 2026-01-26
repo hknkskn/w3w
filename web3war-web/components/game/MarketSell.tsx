@@ -6,8 +6,10 @@ import { motion } from 'framer-motion';
 import { Package, Tag, Plus, Minus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { IDSCard, IDSLabel } from '@/components/ui/ids';
+import { useTranslation } from '@/lib/i18n';
 
 export function MarketSell() {
+    const { t } = useTranslation();
     const {
         inventory,
         selectedItemId,
@@ -21,7 +23,7 @@ export function MarketSell() {
             await methods.handleListAction();
         } catch (e: any) {
             const { idsAlert } = useGameStore.getState();
-            await idsAlert(e.message || "Failed to post listing", "Market Exchange", "error");
+            await idsAlert(e.message || t('market.failed_post'), t('market.market_exchange'), "error");
         }
     };
 
@@ -32,13 +34,13 @@ export function MarketSell() {
                 <div className="col-span-12 lg:col-span-5 space-y-3">
                     <div className="flex items-center gap-2 px-2">
                         <Package size={12} className="text-slate-600" />
-                        <IDSLabel color="dim">Registered Inventory</IDSLabel>
+                        <IDSLabel color="dim">{t('market.registered_inventory')}</IDSLabel>
                     </div>
 
                     <div className="grid grid-cols-1 gap-1 max-h-[480px] overflow-y-auto pr-2 custom-scrollbar">
                         {inventory.length === 0 ? (
                             <IDSCard variant="outline" className="py-20 text-center border-dashed border-slate-800">
-                                <IDSLabel color="dim">No assets detected</IDSLabel>
+                                <IDSLabel color="dim">{t('market.no_assets_detected')}</IDSLabel>
                             </IDSCard>
                         ) : (
                             inventory.map((item) => (
@@ -86,7 +88,7 @@ export function MarketSell() {
 
                     <div className="flex items-center gap-2 mb-6 relative z-10">
                         <Tag size={12} className="text-slate-600" />
-                        <IDSLabel color="dim">SELL WORKSTATION</IDSLabel>
+                        <IDSLabel color="dim">{t('market.sell_workstation')}</IDSLabel>
                     </div>
 
                     {selectedItem ? (
@@ -97,9 +99,9 @@ export function MarketSell() {
                                 <div>
                                     <div className="font-black text-white text-lg uppercase tracking-tight leading-none">{selectedItem.name}</div>
                                     <div className="text-[9px] text-slate-600 font-black uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
-                                        Asset Quality: <span className="text-amber-500">Q{selectedItem.quality}</span>
+                                        {t('market.asset_quality')}: <span className="text-amber-500">Q{selectedItem.quality}</span>
                                         <span className="w-1 h-1 bg-slate-800 rounded-full" />
-                                        Category: {selectedItem.category}
+                                        {t('market.category')}: {selectedItem.category}
                                     </div>
                                 </div>
                             </div>
@@ -107,7 +109,7 @@ export function MarketSell() {
                             <div className="grid grid-cols-2 gap-6">
                                 {/* Quantity Picker */}
                                 <div className="space-y-3 text-center">
-                                    <IDSLabel color="dim">TRADING VOLUME</IDSLabel>
+                                    <IDSLabel color="dim">{t('market.trading_volume')}</IDSLabel>
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => methods.updateQuantity(form.quantity - 1)}
@@ -125,12 +127,12 @@ export function MarketSell() {
                                             <Plus size={16} />
                                         </button>
                                     </div>
-                                    <div className="text-[8px] text-slate-700 font-black uppercase tracking-widest leading-none">LOCAL STOCK: {selectedItem.quantity}</div>
+                                    <div className="text-[8px] text-slate-700 font-black uppercase tracking-widest leading-none">{t('market.local_stock')}: {selectedItem.quantity}</div>
                                 </div>
 
                                 {/* Price Input */}
                                 <div className="space-y-3 text-center">
-                                    <IDSLabel color="dim">UNIT PRICE (CRED)</IDSLabel>
+                                    <IDSLabel color="dim">{t('market.unit_price')}</IDSLabel>
                                     <div className="relative">
                                         <input
                                             type="number"
@@ -141,14 +143,14 @@ export function MarketSell() {
                                         />
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-amber-500 uppercase tracking-widest">CRED</span>
                                     </div>
-                                    <div className="text-[8px] text-slate-700 font-black uppercase tracking-widest leading-none">AVG: 0.55 • 5% TAX</div>
+                                    <div className="text-[8px] text-slate-700 font-black uppercase tracking-widest leading-none">{t('market.tax_note', { avg: '0.55', tax: '5' })}</div>
                                 </div>
                             </div>
 
                             <div className="pt-6 border-t border-slate-800 mt-auto space-y-3">
                                 {/* Total Price Display */}
                                 <div className="flex items-center justify-between px-1">
-                                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Total Value</span>
+                                    <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{t('market.total_value')}</span>
                                     <span className="text-lg font-mono font-bold text-amber-500">{(form.price * form.quantity).toFixed(2)} <span className="text-xs text-slate-500">CRED</span></span>
                                 </div>
 
@@ -158,11 +160,11 @@ export function MarketSell() {
                                         onClick={handleList}
                                         className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black uppercase tracking-widest rounded-lg transition-all active:scale-[0.98]"
                                     >
-                                        Post Listing
+                                        {t('market.post_listing')}
                                     </button>
                                 </div>
                                 <p className="text-center text-[8px] text-slate-600 uppercase tracking-widest">
-                                    Assets will be held until sold
+                                    {t('market.held_until_sold')}
                                 </p>
                             </div>
                         </div>
@@ -172,8 +174,8 @@ export function MarketSell() {
                                 <Package size={32} className="opacity-10" />
                             </div>
                             <div>
-                                <IDSLabel color="dim" className="tracking-[0.3em] mb-1">SYSTEM STANDBY</IDSLabel>
-                                <IDSLabel color="dim" size="sm">SELECT ASSET FROM REGISTRY</IDSLabel>
+                                <IDSLabel color="dim" className="tracking-[0.3em] mb-1">{t('market.system_standby')}</IDSLabel>
+                                <IDSLabel color="dim" size="sm">{t('market.select_asset_registry')}</IDSLabel>
                             </div>
                         </div>
                     )}
@@ -184,9 +186,9 @@ export function MarketSell() {
             <IDSCard className="flex gap-4 items-center bg-amber-500/5 border-amber-500/10">
                 <AlertCircle size={16} className="text-amber-500 shrink-0" />
                 <div>
-                    <IDSLabel color="accent" className="mb-0.5">Escrow Directive</IDSLabel>
+                    <IDSLabel color="accent" className="mb-0.5">{t('market.escrow_directive')}</IDSLabel>
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest leading-none">
-                        National taxes apply. Listing assets prevents use in combat units.
+                        {t('market.escrow_note')}
                     </p>
                 </div>
             </IDSCard>

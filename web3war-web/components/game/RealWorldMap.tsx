@@ -56,6 +56,8 @@ const FACTIONS = [
     { name: 'Nordic League', color: '#06b6d4' },
 ];
 
+import { TerritoryService } from '@/lib/services/territory.service';
+
 export function RealWorldMap() {
     const { activeBattles, alliances, user, isLandless, fetchLandlessStatus } = useGameStore();
     const [position, setPosition] = useState<{ coordinates: [number, number], zoom: number }>({
@@ -66,6 +68,28 @@ export function RealWorldMap() {
     const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
     const [showRegionSelector, setShowRegionSelector] = useState(false);
     const [isResistanceSelection, setIsResistanceSelection] = useState(false);
+    const [occupiedCountries, setOccupiedCountries] = useState<Set<number>>(new Set());
+
+    const fetchOccupation = async () => {
+        try {
+            const regions = await TerritoryService.getAllRegions();
+            const occupied = new Set<number>();
+            regions.forEach(r => {
+                if (r.ownerCountry !== r.originalOwner) {
+                    occupied.add(r.originalOwner);
+                }
+            });
+            setOccupiedCountries(occupied);
+        } catch (e) {
+            console.error("Failed to fetch occupation status", e);
+        }
+    };
+
+    useEffect(() => {
+        fetchOccupation();
+        const interval = setInterval(fetchOccupation, 60000); // 1 min refresh
+        return () => clearInterval(interval);
+    }, []);
 
     useEffect(() => {
         if (user?.countryId) {
@@ -88,27 +112,22 @@ export function RealWorldMap() {
     };
 
     const getCountryColor = (geo: any) => {
-        // Try multiple ways to identify the country
         const isoA3 = geo.properties?.ISO_A3 || geo.properties?.iso_a3;
-        const numericId = String(geo.id).padStart(3, '0'); // Pad with zeros for matching
-
-        // Get our internal country ID
+        const numericId = String(geo.id).padStart(3, '0');
         let countryId: CountryId | undefined = undefined;
 
         if (isoA3 && ISO_TO_ID[isoA3]) {
             countryId = ISO_TO_ID[isoA3];
         } else if (NUMERIC_TO_ID[numericId]) {
             countryId = NUMERIC_TO_ID[numericId];
-        } else if (NUMERIC_TO_ID[String(geo.id)]) {
-            countryId = NUMERIC_TO_ID[String(geo.id)];
         }
 
-        // Debug logging - uncomment to see what IDs the map uses
-        if (geo.properties?.name && ['Turkey', 'Russia', 'Brazil', 'France', 'United States of America', 'India', 'Poland', 'Spain', 'Nigeria', 'Ukraine'].includes(geo.properties.name)) {
-            console.log('Active Country:', geo.properties?.name, 'ISO:', isoA3, 'NumID:', geo.id, 'Mapped:', countryId);
+        // 1. Occupation Check (Strategic Priority)
+        if (countryId && occupiedCountries.has(COUNTRY_IDS[countryId])) {
+            return '#64748b'; // Slate 500 - indicating partially lost sovereignty
         }
 
-        // 1. Active Battle Check
+        // 2. Active Battle Check
         if (countryId) {
             const hasBattle = activeBattles.some((b: Battle) =>
                 b.defender === countryId || b.attacker === countryId
@@ -116,7 +135,7 @@ export function RealWorldMap() {
             if (hasBattle) return '#ef4444'; // Red alert
         }
 
-        // 2. Highlight selected country's allies
+        // 3. Highlight selected country's allies
         if (selectedCountry && countryId) {
             const selectedId = ISO_TO_ID[selectedCountry] || NUMERIC_TO_ID[selectedCountry] || selectedCountry;
 
@@ -127,12 +146,11 @@ export function RealWorldMap() {
             if (isAlly) return '#22d3ee'; // Cyan for allies
         }
 
-        // 3. Active Country - Color it with country color
+        // 4. Active Country Color
         if (countryId && COUNTRY_CONFIG[countryId]) {
             return COUNTRY_CONFIG[countryId].color;
         }
 
-        // 4. Default for inactive regions
         return '#1e293b';
     };
 

@@ -1,5 +1,6 @@
 import { StateCreator } from 'zustand';
 import { GameState } from '../store';
+import { getTacticalFeedback, TacticalKey } from '../utils/tactical-feedback';
 
 export type NotificationType = 'alert' | 'confirm' | 'prompt';
 export type NotificationSeverity = 'info' | 'warning' | 'error' | 'success';
@@ -17,6 +18,7 @@ interface NotificationState {
 export interface UISlice {
     activeNotification: NotificationState | null;
     idsAlert: (message: string, title?: string, severity?: NotificationSeverity) => Promise<void>;
+    idsTacticalAlert: (key: TacticalKey) => Promise<void>;
     idsConfirm: (message: string, title?: string, severity?: NotificationSeverity) => Promise<boolean>;
     idsPrompt: (message: string, defaultValue?: string, title?: string) => Promise<string | null>;
     closeNotification: (value?: any) => void;
@@ -40,6 +42,11 @@ export const createUISlice: StateCreator<GameState, [], [], UISlice> = (set, get
                 },
             });
         });
+    },
+
+    idsTacticalAlert: (key) => {
+        const { title, message, severity } = getTacticalFeedback(key);
+        return get().idsAlert(message, title, severity);
     },
 
     idsConfirm: (message, title = 'Confirmation', severity = 'warning') => {

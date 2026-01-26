@@ -6,10 +6,13 @@ import { Shield, MapPin, Wallet, Trophy, Coins, LogOut, Users, Newspaper, Home, 
 import { useRouter } from 'next/navigation';
 import { CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from '@/lib/types';
 import Link from 'next/link';
+import { TacticalAvatar } from '@/components/game/TacticalAvatar';
+import { useTranslation } from '@/lib/i18n';
 
 export default function ProfilePage() {
     const user = useGameStore(state => state.user);
     const router = useRouter();
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<'profile' | 'friends' | 'edit'>('profile');
 
     if (!user) {
@@ -47,8 +50,8 @@ export default function ProfilePage() {
                             <div className="flex items-center gap-3">
                                 <MapPin size={14} className="text-slate-500" />
                                 <div className="text-xs">
-                                    <span className="text-slate-500">Location:</span>
-                                    <span className="text-cyan-400 ml-1 font-medium">change</span>
+                                    <span className="text-slate-500">{t('profile.location')}:</span>
+                                    <span className="text-cyan-400 ml-1 font-medium">{t('profile.change')}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 text-sm">
@@ -60,8 +63,8 @@ export default function ProfilePage() {
                                 <div className="flex items-center gap-3">
                                     <Flag size={14} className="text-slate-500" />
                                     <div className="text-xs">
-                                        <span className="text-slate-500">Citizenship:</span>
-                                        <span className="text-cyan-400 ml-1 font-medium">change</span>
+                                        <span className="text-slate-500">{t('profile.citizenship')}:</span>
+                                        <span className="text-cyan-400 ml-1 font-medium">{t('profile.change')}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2 text-sm mt-1">
@@ -71,10 +74,10 @@ export default function ProfilePage() {
                             </div>
 
                             <div className="border-t border-slate-700/50 pt-3 text-xs text-slate-400">
-                                <div className="font-medium text-slate-300">Young Citizen</div>
-                                <div>Joined: {new Date().toLocaleDateString()}</div>
+                                <div className="font-medium text-slate-300">{t('profile.young_citizen')}</div>
+                                <div>{t('profile.joined')}: {new Date().toLocaleDateString()}</div>
                                 <div className="mt-1">
-                                    National rank: <span className="text-cyan-400 font-bold">#{user.address.slice(2, 6).toUpperCase()}</span>
+                                    {t('profile.national_rank')}: <span className="text-cyan-400 font-bold">#{user.address.slice(2, 6).toUpperCase()}</span>
                                 </div>
                             </div>
                         </div>
@@ -84,23 +87,23 @@ export default function ProfilePage() {
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 divide-y divide-slate-700/50">
                         <div className="p-3 flex items-center gap-3 text-sm">
                             <span className="text-slate-500">🏛️</span>
-                            <span className="text-slate-400">No political activity</span>
+                            <span className="text-slate-400">{t('profile.no_political')}</span>
                         </div>
                         <div className="p-3 flex items-center gap-3 text-sm">
                             <span className="text-slate-500">🎖️</span>
-                            <span className="text-slate-300">Soldier</span>
+                            <span className="text-slate-300">{t('profile.soldier')}</span>
                         </div>
                         <Link href="/military" className="block p-3 flex items-center gap-3 text-sm hover:bg-slate-700/30 transition-colors">
                             <span className="text-lg">⚔️</span>
-                            <span className="text-cyan-400 font-medium">Join Military Unit</span>
+                            <span className="text-cyan-400 font-medium">{t('profile.join_military')}</span>
                         </Link>
                         <Link href="/newspaper" className="block p-3 flex items-center gap-3 text-sm hover:bg-slate-700/30 transition-colors">
                             <Newspaper size={16} className="text-slate-500" />
-                            <span className="text-cyan-400">Create newspaper</span>
+                            <span className="text-cyan-400">{t('profile.create_newspaper')}</span>
                         </Link>
                         <div className="p-3 flex items-center gap-3 text-sm">
                             <Home size={16} className="text-slate-500" />
-                            <span className="text-slate-300">Resident</span>
+                            <span className="text-slate-300">{t('profile.resident')}</span>
                         </div>
                     </div>
 
@@ -108,10 +111,10 @@ export default function ProfilePage() {
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 p-4">
                         <div className="flex items-center gap-2 text-sm font-bold text-cyan-400 mb-3">
                             <Users size={14} />
-                            Friends (0)
+                            {t('profile.friends')} (0)
                         </div>
-                        <p className="text-xs text-slate-500 italic">No friends yet</p>
-                        <button className="text-xs text-cyan-400 hover:underline mt-2">view all</button>
+                        <p className="text-xs text-slate-500 italic">{t('profile.no_friends')}</p>
+                        <button className="text-xs text-cyan-400 hover:underline mt-2">{t('profile.view_all')}</button>
                     </div>
                 </div>
 
@@ -121,19 +124,32 @@ export default function ProfilePage() {
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
                         <div className="flex items-start gap-6">
                             {/* Avatar */}
-                            <div className="w-24 h-24 bg-slate-700 rounded-xl overflow-hidden border-2 border-slate-600">
-                                <img
-                                    src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user.username}`}
-                                    alt="Avatar"
-                                    className="w-full h-full object-cover"
+                            <div className="w-24 h-24 bg-slate-900 rounded-2xl overflow-hidden border-2 border-slate-700 shadow-xl flex items-center justify-center">
+                                <TacticalAvatar
+                                    seed={user.avatarSeed || user.username}
+                                    size={96}
                                 />
                             </div>
 
                             {/* Name and Tabs */}
                             <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-4">
+                                <div className="flex items-center gap-3 mb-1">
                                     <span className="text-cyan-400 font-bold text-lg">{user.level}</span>
                                     <h1 className="text-2xl font-black text-white">{user.username}</h1>
+                                </div>
+
+                                {/* XP Progress Bar */}
+                                <div className="mb-4 max-w-xs">
+                                    <div className="flex justify-between items-end mb-1 px-0.5">
+                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t('profile.exp_progress')}</span>
+                                        <span className="text-[9px] font-mono text-cyan-400 font-black">{user.xp % 1000} / 1000 <span className="text-slate-600">XP</span></span>
+                                    </div>
+                                    <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-white/5 p-0.5">
+                                        <div
+                                            className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full transition-all duration-1000 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                                            style={{ width: `${(user.xp % 1000) / 10}%` }}
+                                        />
+                                    </div>
                                 </div>
 
                                 {/* Tabs */}
@@ -142,19 +158,19 @@ export default function ProfilePage() {
                                         onClick={() => setActiveTab('profile')}
                                         className={`px-6 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'profile' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                                     >
-                                        Profile
+                                        {t('profile.profile_summary')}
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('friends')}
                                         className={`px-6 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'friends' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                                     >
-                                        Friends
+                                        {t('profile.friends')}
                                     </button>
                                     <button
                                         onClick={() => setActiveTab('edit')}
                                         className={`px-6 py-2 text-sm font-bold rounded-t-lg transition-colors ${activeTab === 'edit' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                                     >
-                                        Edit Profile
+                                        {t('profile.edit_profile')}
                                     </button>
                                 </div>
                             </div>
@@ -171,7 +187,7 @@ export default function ProfilePage() {
                                     onClick={handleDisconnect}
                                     className="flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
                                 >
-                                    <LogOut size={12} /> Disconnect
+                                    <LogOut size={12} /> {t('profile.disconnect')}
                                 </button>
                             </div>
                         </div>
@@ -179,7 +195,7 @@ export default function ProfilePage() {
 
                     {/* Achievements */}
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Achievements</h3>
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">{t('profile.achievements')}</h3>
                         <div className="grid grid-cols-6 gap-4">
                             {achievements.map((ach) => (
                                 <div key={ach.id} className="flex flex-col items-center">
@@ -194,27 +210,27 @@ export default function ProfilePage() {
 
                     {/* Military Attributes */}
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Military Attributes</h3>
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">{t('profile.military_attributes')}</h3>
 
                         <div className="grid grid-cols-3 gap-6">
                             {/* Ground */}
                             <div className="text-center">
                                 <div className="text-3xl mb-2">🎖️</div>
-                                <div className="text-xs text-slate-500 uppercase">Ground</div>
-                                <div className="text-sm font-bold text-white">Division 1</div>
+                                <div className="text-xs text-slate-500 uppercase">{t('profile.ground')}</div>
+                                <div className="text-sm font-bold text-white">{t('profile.division', { level: 1 })}</div>
                             </div>
 
                             {/* Strength */}
                             <div className="text-center">
                                 <div className="text-3xl mb-2">💪</div>
-                                <div className="text-xs text-slate-500 uppercase">Strength</div>
+                                <div className="text-xs text-slate-500 uppercase">{t('profile.strength')}</div>
                                 <div className="text-lg font-black text-amber-400">{(user.strength || 0).toFixed(2)}</div>
                             </div>
 
                             {/* Military Rank */}
                             <div>
-                                <div className="text-xs text-slate-500 uppercase mb-1">Military Rank</div>
-                                <div className="text-sm font-bold text-cyan-400 mb-2">Private *</div>
+                                <div className="text-xs text-slate-500 uppercase mb-1">{t('profile.military_rank')}</div>
+                                <div className="text-sm font-bold text-cyan-400 mb-2">{t('profile.rank_private')}</div>
                                 <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                                     <div
                                         className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full"
@@ -228,22 +244,22 @@ export default function ProfilePage() {
 
                     {/* Economy Stats */}
                     <div className="bg-slate-800/60 backdrop-blur-sm rounded-xl border border-slate-700/50 p-6">
-                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Economy</h3>
+                        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">{t('profile.economy')}</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-700/30">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Coins size={16} className="text-amber-500" />
-                                    <span className="text-xs text-slate-500 uppercase">Credits</span>
+                                    <span className="text-xs text-slate-500 uppercase">{t('profile.credits')}</span>
                                 </div>
                                 <div className="text-xl font-black text-amber-400">{(user.credits || 0).toFixed(2)} CRED</div>
                             </div>
                             <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-700/30">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Trophy size={16} className="text-cyan-500" />
-                                    <span className="text-xs text-slate-500 uppercase">Job Status</span>
+                                    <span className="text-xs text-slate-500 uppercase">{t('profile.job_status')}</span>
                                 </div>
                                 <div className="text-lg font-bold text-white">
-                                    {user.employerId ? 'Employed' : 'Unemployed'}
+                                    {user.employerId ? t('profile.employed') : t('profile.unemployed')}
                                 </div>
                             </div>
                         </div>

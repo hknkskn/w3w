@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useGameStore } from '@/lib/store';
 import { CountryId, COUNTRY_CONFIG } from '@/lib/types';
-import { Shield, Wallet, MapPin, User, ChevronRight, Download, RefreshCw, ArrowRight, Coins } from 'lucide-react';
+import { Shield, Wallet, MapPin, User, ChevronRight, Download, RefreshCw, ArrowRight, Coins, Fingerprint } from 'lucide-react';
 import { WalletService } from '@/lib/wallet';
+import { AvatarCreator } from './AvatarCreator';
 import IDSNotificationPortal from '@/components/ui/ids/IDSNotificationPortal';
+import { LanguageSelector } from '@/components/ui/LanguageSelector';
 
 const COUNTRIES: { id: CountryId; name: string }[] = [
     { id: 'NG', name: 'Nigeria' },
@@ -27,6 +29,7 @@ export default function LoginScreen() {
     const [step, setStep] = useState<'CONNECT' | 'REGISTER' | 'SYNC'>('CONNECT');
     const [username, setUsername] = useState('');
     const [selectedCountry, setSelectedCountry] = useState<CountryId>('TR');
+    const [avatarSeed, setAvatarSeed] = useState('');
 
     // Wallet State
     const [isWalletInstalled, setIsWalletInstalled] = useState(false);
@@ -155,8 +158,12 @@ export default function LoginScreen() {
             const { ContractService } = await import('@/lib/contract-service');
             const countryCode = COUNTRY_IDS[selectedCountry] || 1;
 
+            setError('Encoding tactical profile...');
+            // Encode avatar seed into username: "Name#seed"
+            const finalUsername = `${username.trim()}#${avatarSeed}`;
+
             setError('Sending registration transaction...');
-            const txHash = await ContractService.registerCitizen(username, countryCode);
+            const txHash = await ContractService.registerCitizen(finalUsername, countryCode);
 
             setError('Waiting for network confirmation...');
             await new Promise(r => setTimeout(r, 4000));
@@ -250,9 +257,9 @@ export default function LoginScreen() {
                 <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm" />
             </div>
 
-            <div className="relative w-full max-w-md p-8">
+            <div className="relative w-full max-w-2xl p-8 flex flex-col items-center">
                 {/* Logo Area */}
-                <div className="text-center mb-10">
+                <div className="text-center mb-6">
                     <div className="inline-flex items-center justify-center w-16 h-16 mb-6 rounded-2xl bg-slate-800 border border-slate-700 shadow-xl">
                         <Shield className="w-8 h-8 text-cyan-400" />
                     </div>
@@ -265,7 +272,7 @@ export default function LoginScreen() {
                 {/* Main Card */}
                 <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-6 shadow-2xl transition-all">
 
-                    {step === 'CONNECT' ? (
+                    {step === 'CONNECT' && (
                         <div className="space-y-6 text-center">
                             <div className="p-4 bg-cyan-500/10 rounded-xl border border-cyan-500/20 mb-6">
                                 <p className="text-sm text-cyan-200">
@@ -306,89 +313,99 @@ export default function LoginScreen() {
                                 )}
                             </button>
                         </div>
-                    ) : step === 'REGISTER' ? (
-                        <div className="space-y-5">
-                            <div className="text-center mb-4">
-                                <h3 className="text-lg font-bold text-white">Create Your Identity</h3>
-                                <p className="text-xs text-slate-400">New wallet detected. Register to proceed.</p>
+                    )}
+
+                    {step === 'REGISTER' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                            {/* Left Side: Avatar Creator */}
+                            <div className="space-y-4">
+                                <div className="text-center md:text-left mb-2">
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                        <Fingerprint className="text-cyan-400" size={18} />
+                                        Visual ID
+                                    </h3>
+                                    <p className="text-xs text-slate-400 italic">Customize your tactical interface avatar.</p>
+                                </div>
+                                <AvatarCreator onSeedUpdate={setAvatarSeed} />
                             </div>
 
-                            {/* Username Input */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">Callsign</label>
-                                <div className="relative group">
-                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors" size={18} />
-                                    <input
-                                        type="text"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        placeholder="Enter your username"
-                                        className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium"
-                                    />
+                            {/* Right Side: Identity Details */}
+                            <div className="space-y-4">
+                                <div className="text-center md:text-left mb-2">
+                                    <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                        <User className="text-cyan-400" size={18} />
+                                        Registry Data
+                                    </h3>
+                                    <p className="text-xs text-slate-400">Initialize your citizen metadata.</p>
                                 </div>
-                            </div>
 
-                            {/* Country Selection */}
-                            <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">Citizenship</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {COUNTRIES.map((country) => (
-                                        <button
-                                            key={country.id}
-                                            onClick={() => setSelectedCountry(country.id)}
-                                            className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all ${selectedCountry === country.id
-                                                ? 'bg-cyan-600/20 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.1)] text-white'
-                                                : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800 hover:border-slate-600'
-                                                }`}
-                                        >
-                                            <div className="w-6 h-4 flex-shrink-0 overflow-hidden rounded-sm shadow-sm border border-white/5">
-                                                <img
-                                                    src={COUNTRY_CONFIG[country.id].flag}
-                                                    className="w-full h-full object-cover"
-                                                    alt=""
-                                                />
-                                            </div>
-                                            <span className="text-xs font-bold truncate pr-1">{country.name}</span>
-                                        </button>
-                                    ))}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">Callsign</label>
+                                    <div className="relative group">
+                                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-400 transition-colors" size={18} />
+                                        <input
+                                            type="text"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            placeholder="Enter your username"
+                                            className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Error Message */}
-                            {error && (
-                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium text-center">
-                                    {error}
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-400 ml-1 uppercase tracking-wider">Citizenship</label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {COUNTRIES.map((country) => (
+                                            <button
+                                                key={country.id}
+                                                onClick={() => setSelectedCountry(country.id)}
+                                                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl border transition-all ${selectedCountry === country.id
+                                                    ? 'bg-cyan-600/20 border-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.1)] text-white'
+                                                    : 'bg-slate-800/40 border-slate-700/50 text-slate-400 hover:bg-slate-800 hover:border-slate-600'
+                                                    }`}
+                                            >
+                                                <div className="w-6 h-4 flex-shrink-0 overflow-hidden rounded-sm shadow-sm border border-white/5">
+                                                    <img src={COUNTRY_CONFIG[country.id].flag} className="w-full h-full object-cover" alt="" />
+                                                </div>
+                                                <span className="text-xs font-bold truncate pr-1">{country.name}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                            )}
 
-                            {/* Register Button */}
-                            <button
-                                onClick={handleRegister}
-                                disabled={!username || isConnecting}
-                                className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20"
-                            >
-                                {isConnecting ? (
-                                    <>
-                                        <RefreshCw size={18} className="animate-spin" />
-                                        <span>Registering...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Shield size={18} />
-                                        <span>Confirm Registration</span>
-                                    </>
+                                {/* Language Selector */}
+                                <LanguageSelector variant="register" />
+
+                                {error && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-xs font-medium text-center">
+                                        {error}
+                                    </div>
                                 )}
-                            </button>
 
-                            <button
-                                onClick={() => setStep('CONNECT')}
-                                className="w-full text-xs text-slate-500 hover:text-white mt-2"
-                            >
-                                Cancel & Return
-                            </button>
+                                <button
+                                    onClick={handleRegister}
+                                    disabled={!username || isConnecting}
+                                    className="w-full mt-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-emerald-900/20"
+                                >
+                                    {isConnecting ? (
+                                        <><RefreshCw size={18} className="animate-spin" /><span>Registering...</span></>
+                                    ) : (
+                                        <><Shield size={18} /><span>Confirm Registration</span></>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={() => setStep('CONNECT')}
+                                    className="w-full text-xs text-slate-500 hover:text-white mt-2"
+                                >
+                                    Cancel & Return
+                                </button>
+                            </div>
                         </div>
-                    ) : (
-                        /* SYNC STEP - Gamified */
+                    )}
+
+                    {step === 'SYNC' && (
                         <div className="space-y-6 text-center">
                             <div className="w-20 h-20 mx-auto bg-amber-500/10 rounded-full flex items-center justify-center border-2 border-amber-500/20 mb-4 shadow-[0_0_20px_rgba(245,158,11,0.1)]">
                                 <Wallet className="w-10 h-10 text-amber-500" />
@@ -397,7 +414,7 @@ export default function LoginScreen() {
                             <div className="space-y-2">
                                 <h3 className="text-xl font-black text-white uppercase tracking-tight">Tactical Wallet Sync</h3>
                                 <p className="text-sm text-slate-400">
-                                    Your military identity is ready. Now, authorize your tactical wallet to receive combat pay (CRED) and access the national bank.
+                                    Your military identity is ready. Now, authorize your tactical wallet.
                                 </p>
                             </div>
 
@@ -409,15 +426,6 @@ export default function LoginScreen() {
                                     <div>
                                         <p className="text-[10px] font-bold text-slate-500 uppercase">Status</p>
                                         <p className="text-xs text-emerald-400 font-bold">Identity Verified</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3 text-left opacity-50">
-                                    <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-500">
-                                        <Coins size={16} />
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-500 uppercase">National Bank</p>
-                                        <p className="text-xs text-amber-500 font-bold italic">Connection Required</p>
                                     </div>
                                 </div>
                             </div>
@@ -437,10 +445,7 @@ export default function LoginScreen() {
                                     {isConnecting ? (
                                         <RefreshCw className="animate-spin" size={20} />
                                     ) : (
-                                        <>
-                                            <span>Authorize Tactical Wallet</span>
-                                            <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                                        </>
+                                        <><span className="ml-10">Authorize Tactical Wallet</span><ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" /></>
                                     )}
                                 </button>
 
@@ -452,24 +457,8 @@ export default function LoginScreen() {
                                     >
                                         Check Status
                                     </button>
-                                    <button
-                                        onClick={async () => {
-                                            const { idsConfirm } = useGameStore.getState();
-                                            const confirmed = await idsConfirm("If you're already registered, you can proceed. If not, game features may fail. Proceed?", "Tactical Warning");
-                                            if (confirmed) {
-                                                login(username || "Soldier", selectedCountry, walletAddress!);
-                                            }
-                                        }}
-                                        className="flex-1 bg-slate-800/50 hover:bg-slate-800 text-slate-500 text-[10px] font-bold py-3 rounded-xl border border-slate-700/50 transition-all"
-                                    >
-                                        Skip & Enter
-                                    </button>
                                 </div>
                             </div>
-
-                            <p className="text-[10px] text-slate-500 font-medium italic">
-                                * This one-time authorization is required by the Supra Network Protocol. If you already registered, use "Check Status".
-                            </p>
                         </div>
                     )}
                 </div>
@@ -481,6 +470,6 @@ export default function LoginScreen() {
                 </div>
             </div>
             <IDSNotificationPortal />
-        </div>
+        </div >
     );
 }

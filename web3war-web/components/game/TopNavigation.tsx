@@ -18,14 +18,17 @@ import {
     Newspaper,
     Briefcase,
     Landmark,
-    Trophy
+    Trophy,
+    Vote
 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { TacticalDropdown } from './TacticalDropdown';
 import { useGameStore } from '@/lib/store';
+import { useTranslation } from '@/lib/i18n';
 
 export function TopNavigation() {
     const pathname = usePathname();
+    const { t } = useTranslation();
 
     return (
         <nav className="flex items-center gap-1 bg-slate-800/40 backdrop-blur-md rounded-xl border border-slate-700/50 p-1.5 overflow-visible">
@@ -38,56 +41,57 @@ export function TopNavigation() {
                     }`}
             >
                 <img src="/icons/dashboard.webp" className="w-5 h-5 object-contain" alt="" />
-                <span>Dashboard</span>
+                <span>{t('nav.dashboard')}</span>
             </Link>
 
             <div className="h-8 w-px bg-slate-700/50 mx-1" />
 
             {/* 2. My Places Dropdown */}
             <TacticalDropdown
-                label="My Places"
+                label={t('nav.my_places')}
                 icon={Building2}
                 active={pathname === '/training' || pathname === '/industrial' || pathname === '/companies' || pathname === '/newspaper'}
                 items={[
-                    { label: 'Training Grounds', href: '/training', customIcon: "/icons/Training.webp", description: 'STRENGTH DRILLS', badge: 1, color: 'text-amber-400' },
-                    { label: 'Industrial Center', href: '/industrial', customIcon: "/icons/industrial.webp", description: 'RESOURCE PRODUCTION' },
-                    { label: 'Companies', href: '/companies', icon: Briefcase, description: 'BUSINESS HUB' },
-                    { label: 'Newspaper', href: '/newspaper', icon: Newspaper, description: 'DAILY INTEL' },
+                    { label: t('nav.training_grounds'), href: '/training', customIcon: "/icons/Training.webp", description: 'STRENGTH DRILLS', badge: 1, color: 'text-amber-400' },
+                    { label: t('nav.industrial_center'), href: '/industrial', customIcon: "/icons/industrial.webp", description: 'RESOURCE PRODUCTION' },
+                    { label: t('nav.companies'), href: '/companies', icon: Briefcase, description: 'BUSINESS HUB' },
+                    { label: t('nav.newspaper'), href: '/newspaper', icon: Newspaper, description: 'DAILY INTEL' },
                 ]}
             />
 
             {/* 3. Wars Dropdown */}
             <TacticalDropdown
-                label="Wars"
+                label={t('nav.wars')}
                 icon={Swords}
                 active={pathname === '/wars' || pathname === '/map' || pathname === '/rewards'}
                 items={[
-                    { label: 'Wars & Campaigns', href: '/wars', icon: Swords, description: 'ACTIVE FRONTS' },
-                    { label: 'World Map', href: '/map', customIcon: "/icons/Worldmap.webp", description: 'GLOBAL OPERATIONS' },
-                    { label: 'Reward Center', href: '/rewards', icon: Trophy, description: 'MILITARY BONUSES' },
+                    { label: t('nav.wars_campaigns'), href: '/wars', icon: Swords, description: 'ACTIVE FRONTS' },
+                    { label: t('nav.world_map'), href: '/map', customIcon: "/icons/Worldmap.webp", description: 'GLOBAL OPERATIONS' },
+                    { label: t('nav.reward_center'), href: '/rewards', icon: Trophy, description: 'MILITARY BONUSES' },
                 ]}
             />
 
             {/* 4. Marketplace Dropdown */}
             <TacticalDropdown
-                label="Marketplace"
+                label={t('nav.marketplace')}
                 icon={ShoppingBag}
                 active={pathname === '/market' || pathname === '/inventory'}
                 items={[
-                    { label: 'Global Market', href: '/market', icon: ShoppingBag, description: 'TRADE GOODS' },
-                    { label: 'My Inventory', href: '/inventory', customIcon: "/icons/inventory.webp", description: 'YOUR ARSENAL' },
+                    { label: t('nav.global_market'), href: '/market', icon: ShoppingBag, description: 'TRADE GOODS' },
+                    { label: t('nav.my_inventory'), href: '/inventory', customIcon: "/icons/inventory.webp", description: 'YOUR ARSENAL' },
                 ]}
             />
 
             {/* 5. Community Dropdown */}
             <TacticalDropdown
-                label="Community"
+                label={t('nav.community')}
                 icon={Users}
-                active={pathname === '/politics' || pathname === '/country' || pathname === '/profile'}
+                active={pathname === '/politics' || pathname === '/country' || pathname === '/profile' || pathname === '/election-hub'}
                 items={[
-                    { label: 'National Hub', href: '/country', icon: Landmark, description: 'NATIONAL AFFAIRS' },
-                    { label: 'Politics', href: '/politics', icon: Flag, description: 'GOVERNMENT & VOTING' },
-                    { label: 'Citizen Profile', href: '/profile', icon: UserCircle, description: 'YOUR IDENTITY' },
+                    { label: t('nav.national_hub'), href: '/country', icon: Landmark, description: 'NATIONAL AFFAIRS' },
+                    { label: t('nav.politics'), href: '/politics', icon: Flag, description: 'GOVERNMENT & VOTING' },
+                    { label: t('nav.election_hub'), href: '/election-hub', icon: Vote, description: 'LIVE VOTING & CANDIDACY' },
+                    { label: t('nav.citizen_profile'), href: '/profile', icon: UserCircle, description: 'YOUR IDENTITY' },
                 ]}
             />
 
@@ -98,7 +102,7 @@ export function TopNavigation() {
                 className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-amber-600/20 text-amber-500 border border-amber-500/50 hover:bg-amber-600/30 transition-all whitespace-nowrap"
             >
                 <Gem size={18} />
-                <span className="hidden md:inline">Premium</span>
+                <span className="hidden md:inline">{t('nav.premium')}</span>
             </Link>
         </nav>
     );

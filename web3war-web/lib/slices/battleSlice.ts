@@ -39,12 +39,12 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             const { ContractService } = await import('../contract-service');
             const tx = await ContractService.declareWar(countryId, targetCountryId, regionId);
             if (tx) {
-                await get().idsAlert("War declaration sent! Awaiting confirmation...", "Department of War", "success");
+                await get().idsTacticalAlert('WAR_DECLARED');
                 setTimeout(() => get().fetchBattles(), 4000);
             }
         } catch (e) {
             console.error("Declare war error:", e);
-            await get().idsAlert("Failed to declare war.", "Military Intelligence", "error");
+            await get().idsTacticalAlert('TX_FAILED');
         }
     },
 
@@ -67,11 +67,12 @@ export const createBattleSlice: StateCreator<GameState, [], [], BattleSlice> = (
             const numericId = Number(battleId.replace('b_', '').replace('res_', ''));
             const tx = await ContractService.startNextRound(numericId);
             if (tx) {
-                await get().idsAlert("Next round initialized!", "Combat Command", "success");
+                await get().idsTacticalAlert('MISSION_COMPLETE');
                 setTimeout(() => get().fetchBattles(), 3000);
             }
         } catch (e) {
             console.error("Start next round error:", e);
+            await get().idsTacticalAlert('TX_FAILED');
         }
     },
 

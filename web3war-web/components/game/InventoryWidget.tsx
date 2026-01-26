@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useGameStore } from '@/lib/store';
-import { Package, Zap, Swords, Info, Coins, ChevronRight, Filter, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '@/lib/i18n';
+import { Package, Zap, Swords, Info, Coins, ChevronRight, Filter, Search } from 'lucide-react';
 
 export function InventoryWidget() {
     const { inventory, useItem, fetchInventory } = useGameStore();
     const router = useRouter();
+    const { t } = useTranslation();
     const [filter, setFilter] = useState<'all' | 'food' | 'weapon' | 'material' | 'ticket'>('all');
     const [searchQuery, setSearchQuery] = useState('');
     const [hoveredUID, setHoveredUID] = useState<string | null>(null);
@@ -23,10 +25,10 @@ export function InventoryWidget() {
     });
 
     const categories = [
-        { id: 'all', label: 'All', icon: <img src="/icons/inventory.webp" className="w-4 h-4 object-contain" alt="" /> },
-        { id: 'food', label: 'Food', icon: <img src="/icons/food.webp" className="w-4 h-4 object-contain" alt="" /> },
-        { id: 'weapon', label: 'Armory', icon: <img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" /> },
-        { id: 'material', label: 'Goods', icon: <img src="/icons/warehouse.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'all', label: t('common.all'), icon: <img src="/icons/inventory.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'food', label: t('common.none'), icon: <img src="/icons/food.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'weapon', label: t('inventory_widget.armory'), icon: <img src="/icons/weapon.webp" className="w-4 h-4 object-contain" alt="" /> },
+        { id: 'material', label: t('inventory_widget.goods'), icon: <img src="/icons/warehouse.webp" className="w-4 h-4 object-contain" alt="" /> },
     ];
 
     return (
@@ -35,13 +37,13 @@ export function InventoryWidget() {
             <div className="px-5 py-4 bg-slate-900/60 border-b border-white/5 flex justify-between items-center shrink-0">
                 <h3 className="text-xs font-black text-white uppercase tracking-[0.2em] flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></div>
-                    Tactical Assets
+                    {t('dashboard.tactical_assets')}
                 </h3>
                 <button
                     onClick={() => fetchInventory()}
                     className="p-1 px-3 bg-white/5 hover:bg-cyan-500/10 rounded-lg text-slate-500 hover:text-cyan-400 text-[10px] font-black transition-all border border-white/5"
                 >
-                    SYNC
+                    {t('inventory_widget.sync')}
                 </button>
             </div>
 
@@ -51,7 +53,7 @@ export function InventoryWidget() {
                     <Search size={10} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-cyan-400 transition-colors" />
                     <input
                         type="text"
-                        placeholder="FILTER ASSETS..."
+                        placeholder={t('inventory_widget.filter_assets')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-8 pr-3 py-1.5 bg-slate-950/50 border border-slate-800 rounded-lg text-[9px] font-bold text-slate-400 placeholder:text-slate-700 focus:outline-none focus:border-cyan-500/20 transition-all uppercase tracking-wider"
@@ -85,7 +87,7 @@ export function InventoryWidget() {
                                 className="col-span-4 py-24 text-center opacity-20"
                             >
                                 <Package size={32} className="mx-auto mb-2" />
-                                <p className="text-[10px] font-black uppercase tracking-widest">Vault Empty</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest">{t('inventory_widget.vault_empty')}</p>
                             </motion.div>
                         ) : (
                             filteredInventory.map((item) => {
@@ -139,14 +141,14 @@ export function InventoryWidget() {
                                                                 onClick={(e) => { e.stopPropagation(); useItem(String(item.id)); }}
                                                                 className="w-full py-1 bg-emerald-500/20 hover:bg-emerald-500 text-emerald-400 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-emerald-500/30"
                                                             >
-                                                                USE
+                                                                {t('inventory_widget.use')}
                                                             </button>
                                                         )}
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); router.push(`/market?view=sell&item=${item.id}`); }}
                                                             className="w-full py-1 bg-white/5 hover:bg-cyan-500 text-slate-300 hover:text-white rounded-md text-[7px] font-black uppercase transition-colors border border-white/10"
                                                         >
-                                                            OFFER
+                                                            {t('inventory_widget.offer')}
                                                         </button>
                                                     </div>
                                                 </motion.div>
@@ -163,7 +165,7 @@ export function InventoryWidget() {
             {/* Interaction Note */}
             <div className="px-4 py-2 bg-slate-950/50 flex items-center gap-2 border-t border-white/5 shrink-0">
                 <Info size={10} className="text-slate-600" />
-                <span className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter italic">Hover for specs & quick actions</span>
+                <span className="text-[8px] font-bold text-slate-600 uppercase tracking-tighter italic">{t('inventory_widget.hover_note')}</span>
             </div>
 
             {/* Footer */}
@@ -172,7 +174,7 @@ export function InventoryWidget() {
                     onClick={() => router.push('/inventory')}
                     className="w-full h-10 bg-white/5 hover:bg-white/10 text-[10px] font-black text-slate-400 hover:text-white uppercase tracking-[0.2em] rounded-xl transition-all border border-white/5 flex items-center justify-center gap-2"
                 >
-                    ENTER VAULT <ChevronRight size={12} className="text-cyan-400" />
+                    {t('inventory_widget.enter_vault')} <ChevronRight size={12} className="text-cyan-400" />
                 </button>
             </div>
         </div>

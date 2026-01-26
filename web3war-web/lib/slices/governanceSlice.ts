@@ -18,6 +18,7 @@ export interface GovernanceSlice {
     isLandless: boolean;
     reclaimableRegions: number[];
     topDonors: Record<number, { addr: string, amount: number }[]>;
+    cooldowns: Record<number, { topicType: number, lastTime: number }[]>;
 
     fetchCountryData: (countryId: number) => Promise<void>;
     fetchTreasuryBalance: (countryId: number) => Promise<void>;
@@ -29,6 +30,7 @@ export interface GovernanceSlice {
     fetchCountryGovernance: (countryId: number) => Promise<void>;
     fetchWarStatus: (countryId: number) => Promise<void>;
     fetchTopDonors: (countryId: number) => Promise<void>;
+    fetchCooldowns: (countryId: number) => Promise<void>;
 
     // War Mechanics 2.0 Actions
     fetchLandlessStatus: (countryId: number) => Promise<void>;
@@ -73,6 +75,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
     isLandless: false,
     reclaimableRegions: [],
     topDonors: {},
+    cooldowns: {},
 
     fetchCountryData: async (countryId: number) => {
         try {
@@ -80,7 +83,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             const data = await ContractService.getCountryData(countryId);
             if (data) {
                 set(state => ({
-                    countryData: { ...state.countryData, [countryId]: { ...data, id: countryId } }
+                    countryData: { ...state.countryData, [countryId]: { ...data, id: countryId, electionEndTime: data.electionEndTime || 0 } }
                 }));
             }
         } catch (e) {
@@ -196,6 +199,26 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
         }
     },
 
+    fetchCooldowns: async (countryId: number) => {
+        try {
+            const { ContractService } = await import('../contract-service');
+            const data = await (ContractService as any).getCooldowns(countryId);
+            if (data) {
+                const types = data[0] || [];
+                const times = data[1] || [];
+                const mapped = types.map((type: any, i: number) => ({
+                    topicType: Number(type),
+                    lastTime: Number(times[i])
+                }));
+                set(state => ({
+                    cooldowns: { ...state.cooldowns, [countryId]: mapped }
+                }));
+            }
+        } catch (e) {
+            console.error("Store: Failed to fetch cooldowns", e);
+        }
+    },
+
     fetchLandlessStatus: async (countryId: number) => {
         try {
             const { ContractService } = await import('../contract-service');
@@ -298,6 +321,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             }
         } catch (e) {
             console.error("Registration failed:", e);
+            await get().idsTacticalAlert('STRENGTH_LOW');
         }
     },
 
@@ -410,6 +434,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             }
         } catch (e) {
             console.error("Congress candidacy failed:", e);
+            await get().idsTacticalAlert('RANK_LOW');
         }
     },
 
@@ -531,7 +556,7 @@ export const createGovernanceSlice: StateCreator<GameState, [], [], GovernanceSl
             }
         } catch (e) {
             console.error("Impeachment initiation failed:", e);
-            await get().idsAlert("Registry Error: Check citizenship or CRED balance.", "Governance Error", "error");
+            await get().idsTacticalAlert('INSUFFICIENT_CREDITS');
         }
     },
 

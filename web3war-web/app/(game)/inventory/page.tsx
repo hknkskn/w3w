@@ -4,9 +4,11 @@ import { useGameStore } from '@/lib/store';
 import { useState, useEffect } from 'react';
 import { Package, Zap, Swords, Filter, RefreshCw, PlusCircle, Info, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '@/lib/i18n';
 
 export default function InventoryPage() {
     const { user, inventory, fetchInventory, initInventory, useItem } = useGameStore();
+    const { t } = useTranslation();
     const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'weapon' | 'material' | 'ticket'>('all');
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -15,11 +17,11 @@ export default function InventoryPage() {
     }, []);
 
     const categories = [
-        { id: 'all', name: 'All Assets', icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
-        { id: 'weapon', name: 'Armory', icon: <img src="/icons/weapon.webp" className="w-5 h-5 object-contain" alt="" /> },
-        { id: 'food', name: 'Consumables', icon: <img src="/icons/food.webp" className="w-5 h-5 object-contain" alt="" /> },
-        { id: 'material', name: 'Raw Goods', icon: <img src="/icons/warehouse.webp" className="w-5 h-5 object-contain" alt="" /> },
-        { id: 'ticket', name: 'Access Keys', icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'all', name: t('inventory.all_assets'), icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'weapon', name: t('inventory.armory'), icon: <img src="/icons/weapon.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'food', name: t('inventory.consumables'), icon: <img src="/icons/food.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'material', name: t('inventory.raw_goods'), icon: <img src="/icons/warehouse.webp" className="w-5 h-5 object-contain" alt="" /> },
+        { id: 'ticket', name: t('inventory.access_keys'), icon: <img src="/icons/inventory.webp" className="w-5 h-5 object-contain" alt="" /> },
     ];
 
     const filteredInventory = (inventory || []).filter(item => {
@@ -40,7 +42,7 @@ export default function InventoryPage() {
                 <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                     type="text"
-                    placeholder="Search by asset name or property..."
+                    placeholder={t('inventory.search_placeholder')}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-12 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm"
@@ -51,7 +53,7 @@ export default function InventoryPage() {
                 {/* Categories Sidebar */}
                 <div className="lg:col-span-1">
                     <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 p-4">
-                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">Categories</h3>
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">{t('inventory.categories')}</h3>
                         <nav className="space-y-1">
                             {categories.map((cat) => (
                                 <button
@@ -75,10 +77,10 @@ export default function InventoryPage() {
                     <div className="bg-slate-800/20 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 overflow-hidden">
                         {/* Table Header */}
                         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
-                            <div className="col-span-6">Asset Specification</div>
-                            <div className="col-span-2">Quality</div>
-                            <div className="col-span-2">Quantity</div>
-                            <div className="col-span-2 text-right">Operations</div>
+                            <div className="col-span-6">{t('inventory.asset_spec')}</div>
+                            <div className="col-span-2">{t('inventory.quality')}</div>
+                            <div className="col-span-2">{t('inventory.quantity')}</div>
+                            <div className="col-span-2 text-right">{t('inventory.operations')}</div>
                         </div>
 
                         {/* Table Body */}
@@ -88,7 +90,7 @@ export default function InventoryPage() {
                                     <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-4 border border-dashed border-slate-700 opacity-20">
                                         <Package size={24} />
                                     </div>
-                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Vault Sector Empty</p>
+                                    <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">{t('inventory.vault_empty')}</p>
                                 </div>
                             ) : (
                                 filteredInventory.map((item) => {
@@ -115,7 +117,7 @@ export default function InventoryPage() {
                                                         {item.name}
                                                     </div>
                                                     <div className="text-[9px] text-slate-500 font-black uppercase tracking-tighter mt-0.5">
-                                                        ID: #{item.id} • Registered Asset
+                                                        {t('inventory.id_label', { id: item.id })} • {t('inventory.registered_asset')}
                                                     </div>
                                                 </div>
                                             </div>
@@ -139,11 +141,11 @@ export default function InventoryPage() {
                                                         onClick={() => useItem(uId)}
                                                         className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20"
                                                     >
-                                                        Consume
+                                                        {t('inventory.consume')}
                                                     </button>
                                                 ) : (
                                                     <button className="px-3 py-1.5 bg-white/5 hover:bg-slate-700 text-slate-400 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-white/5">
-                                                        Details
+                                                        {t('inventory.details')}
                                                     </button>
                                                 )}
                                             </div>

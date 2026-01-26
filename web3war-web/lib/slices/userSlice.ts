@@ -280,6 +280,7 @@ export const createUserSlice: StateCreator<GameState, [], [], UserSlice> = (set,
             }
         } catch (e) {
             console.error("Mint credits failed:", e);
+            await get().idsTacticalAlert('TX_FAILED');
         }
     },
 

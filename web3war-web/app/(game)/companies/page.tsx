@@ -14,10 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CompanyService } from '@/lib/services/company.service';
-
-// ============================================================
-//  JOB MARKET - Inventory Style Layout with Filters
-// ============================================================
+import { useTranslation } from '@/lib/i18n';
 
 // Company type icons and names
 const COMPANY_TYPES: Record<number, { name: string; icon: string; color: string }> = {
@@ -26,15 +23,6 @@ const COMPANY_TYPES: Record<number, { name: string; icon: string; color: string 
     3: { name: 'Raw Materials', icon: '/icons/warehouse.webp', color: 'text-amber-400' },
     4: { name: 'Missile Factory', icon: '/icons/weapon.webp', color: 'text-cyan-400' },
 };
-
-// Category filters
-const CATEGORIES = [
-    { id: 'all', name: 'All Jobs', icon: '/icons/inventory.webp', typeId: null },
-    { id: 'food', name: 'Food Industry', icon: '/icons/food.webp', typeId: 1 },
-    { id: 'weapons', name: 'Arms Industry', icon: '/icons/weapon.webp', typeId: 2 },
-    { id: 'raw', name: 'Mining', icon: '/icons/warehouse.webp', typeId: 3 },
-    { id: 'missile', name: 'Aerospace', icon: '/icons/weapon.webp', typeId: 4 },
-];
 
 // Quality filter options
 const QUALITIES = [
@@ -56,10 +44,20 @@ interface JobOffer {
 }
 
 export default function CompaniesPage() {
+    const { t } = useTranslation();
     const { user, fetchDashboardData } = useGameStore();
     const [jobOffers, setJobOffers] = useState<JobOffer[]>([]);
     const [loading, setLoading] = useState(true);
     const [applying, setApplying] = useState<number | null>(null);
+
+    // Category filters
+    const CATEGORIES = [
+        { id: 'all', name: t('jobs.all_industry', {}, 'All Jobs'), icon: '/icons/inventory.webp', typeId: null },
+        { id: 'food', name: t('jobs.food_industry'), icon: '/icons/food.webp', typeId: 1 },
+        { id: 'weapons', name: t('jobs.arms_industry'), icon: '/icons/weapon.webp', typeId: 2 },
+        { id: 'raw', name: t('jobs.mining_industry'), icon: '/icons/warehouse.webp', typeId: 3 },
+        { id: 'missile', name: t('jobs.aerospace_industry'), icon: '/icons/weapon.webp', typeId: 4 },
+    ];
 
     // Filter states
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -108,7 +106,7 @@ export default function CompaniesPage() {
     const handleApply = async (companyId: number) => {
         if (!user) {
             const { idsAlert } = useGameStore.getState();
-            await idsAlert("Please login first!", "Authentication Required", "warning");
+            await idsAlert(t('common.login_required', {}, "Please login first!"), t('common.auth_required', {}, "Authentication Required"), "warning");
             return;
         }
 
@@ -116,12 +114,12 @@ export default function CompaniesPage() {
         try {
             await CompanyService.takeJob(companyId);
             const { idsAlert } = useGameStore.getState();
-            await idsAlert("Successfully applied for job!", "Job Application", "success");
+            await idsAlert(t('jobs.apply_success', {}, "Successfully applied for job!"), t('jobs.job_application', {}, "Job Application"), "success");
             await fetchJobOffers();
             await fetchDashboardData();
         } catch (e: any) {
             const { idsAlert } = useGameStore.getState();
-            await idsAlert(e.message || "Failed to apply", "Error", "error");
+            await idsAlert(e.message || t('common.error', {}, "Error"), t('common.error', {}, "Error"), "error");
         } finally {
             setApplying(null);
         }
@@ -143,9 +141,9 @@ export default function CompaniesPage() {
                     <Briefcase size={24} className="text-cyan-400" />
                 </div>
                 <div>
-                    <h1 className="text-xl font-black text-white uppercase tracking-tight">Job Market</h1>
+                    <h1 className="text-xl font-black text-white uppercase tracking-tight">{t('jobs.job_market')}</h1>
                     <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
-                        {filteredOffers.length} Active Positions
+                        {t('jobs.active_positions', { count: filteredOffers.length })}
                     </p>
                 </div>
             </div>
@@ -157,7 +155,7 @@ export default function CompaniesPage() {
                     <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
                     <input
                         type="text"
-                        placeholder="Search by company name..."
+                        placeholder={t('jobs.search_company')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-12 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm"
@@ -166,10 +164,10 @@ export default function CompaniesPage() {
 
                 {/* Min Salary Filter */}
                 <div className="relative w-full lg:w-44">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-500">MIN</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-bold text-amber-500">{t('jobs.min_salary')}</span>
                     <input
                         type="number"
-                        placeholder="Salary"
+                        placeholder={t('jobs.salary_label')}
                         value={salaryFilter}
                         onChange={(e) => setSalaryFilter(e.target.value)}
                         className="w-full pl-12 pr-4 py-4 bg-slate-800/40 border-2 border-slate-700/50 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 backdrop-blur-sm font-mono"
@@ -200,7 +198,7 @@ export default function CompaniesPage() {
                 <div className="lg:col-span-1">
                     <div className="bg-slate-800/40 backdrop-blur-sm rounded-xl border-2 border-slate-700/50 p-4">
                         <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">
-                            Industries
+                            {t('jobs.industries_label')}
                         </h3>
                         <nav className="space-y-1">
                             {CATEGORIES.map((cat) => (
@@ -226,11 +224,11 @@ export default function CompaniesPage() {
 
                         {/* Table Header */}
                         <div className="grid grid-cols-12 gap-4 px-6 py-4 bg-slate-900/40 text-[10px] font-black text-slate-500 uppercase tracking-widest border-b border-white/5">
-                            <div className="col-span-5">Company</div>
-                            <div className="col-span-2">Quality</div>
-                            <div className="col-span-2">Salary</div>
-                            <div className="col-span-1">Open</div>
-                            <div className="col-span-2 text-right">Action</div>
+                            <div className="col-span-5">{t('jobs.company_label')}</div>
+                            <div className="col-span-2">{t('jobs.quality_label', {}, 'Quality')}</div>
+                            <div className="col-span-2">{t('jobs.salary_label')}</div>
+                            <div className="col-span-1">{t('jobs.open_label')}</div>
+                            <div className="col-span-2 text-right">{t('jobs.action_label')}</div>
                         </div>
 
                         {/* Table Body */}
@@ -239,7 +237,7 @@ export default function CompaniesPage() {
                                 <div className="py-24 text-center">
                                     <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                                        Loading Jobs...
+                                        {t('jobs.loading_jobs')}
                                     </p>
                                 </div>
                             ) : filteredOffers.length === 0 ? (
@@ -248,10 +246,10 @@ export default function CompaniesPage() {
                                         <Briefcase size={24} />
                                     </div>
                                     <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                                        No Jobs Available
+                                        {t('jobs.no_jobs')}
                                     </p>
                                     <p className="text-slate-600 text-[9px] mt-1 uppercase tracking-wide">
-                                        Check back later for new positions
+                                        {t('jobs.check_back')}
                                     </p>
                                 </div>
                             ) : (
@@ -279,7 +277,7 @@ export default function CompaniesPage() {
                                                         {job.companyName}
                                                     </div>
                                                     <div className={`text-[9px] font-black uppercase tracking-tighter mt-0.5 ${typeInfo.color}`}>
-                                                        {typeInfo.name}
+                                                        {t(`jobs.${typeInfo.name.toLowerCase().replace(' ', '_')}`, {}, typeInfo.name)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -297,7 +295,7 @@ export default function CompaniesPage() {
                                                     {job.salary.toFixed(2)}
                                                 </div>
                                                 <div className="text-[8px] text-slate-600 font-bold uppercase">
-                                                    CRED / shift
+                                                    {t('jobs.cred_per_shift')}
                                                 </div>
                                             </div>
 
@@ -313,7 +311,7 @@ export default function CompaniesPage() {
                                                     disabled={applying === job.companyId}
                                                     className="px-5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded text-[9px] font-black uppercase transition-all border border-emerald-500/20 disabled:opacity-50"
                                                 >
-                                                    {applying === job.companyId ? 'Applying...' : 'Apply'}
+                                                    {applying === job.companyId ? t('jobs.applying_status') : t('jobs.apply_action')}
                                                 </button>
                                             </div>
                                         </motion.div>

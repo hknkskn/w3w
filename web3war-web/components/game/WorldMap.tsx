@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { useTranslation } from '@/lib/i18n';
 
 export interface RegionData {
     id: string;
@@ -19,6 +20,7 @@ interface WorldMapProps {
 }
 
 export function WorldMap({ regions, onRegionSelect, selectedRegionId }: WorldMapProps) {
+    const { t } = useTranslation();
     const [scale, setScale] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
@@ -63,7 +65,7 @@ export function WorldMap({ regions, onRegionSelect, selectedRegionId }: WorldMap
             </div>
 
             <div className="absolute bottom-4 left-4 text-xs text-slate-400 pointer-events-none select-none">
-                Wait for texture load... Map rendered via SVG Vector
+                {t('map.texture_load')}
             </div>
 
             <svg

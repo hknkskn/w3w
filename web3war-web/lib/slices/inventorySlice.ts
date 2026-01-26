@@ -103,7 +103,7 @@ export const createInventorySlice: StateCreator<GameState, [], [], InventorySlic
 
             if (item.category === 1) { // Food (Aligned with ITEMS_CATALOG.md)
                 await ContractService.recoverEnergy(id, quality);
-                await get().idsAlert(`Energy recovery transaction sent! (+${quality * 20} Energy)`, "Physiological Restore", "success");
+                await get().idsTacticalAlert('SUPPLY_RESTORED');
 
                 // Refresh data after block
                 setTimeout(() => {
@@ -115,7 +115,7 @@ export const createInventorySlice: StateCreator<GameState, [], [], InventorySlic
             }
         } catch (e) {
             console.error("Failed to use item:", e);
-            await get().idsAlert("Failed to consume item.", "System Error", "error");
+            await get().idsTacticalAlert('TX_FAILED');
         }
     }
 });

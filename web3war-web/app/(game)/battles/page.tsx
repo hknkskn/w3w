@@ -13,6 +13,7 @@ import { useGameStore } from "@/lib/store";
 import { Battle, Citizen, CountryId, COUNTRY_CONFIG, COUNTRY_IDS } from "@/lib/types";
 import { useParticles } from "@/lib/hooks/useParticles";
 import { RegionSelector } from "@/components/game/RegionSelector";
+import { useTranslation } from "@/lib/i18n";
 
 export default function BattlesPage() {
     const {
@@ -27,6 +28,7 @@ export default function BattlesPage() {
         endActiveRound,
         startNextRound
     } = useGameStore();
+    const { t } = useTranslation();
 
     const [selectedBattleId, setSelectedBattleId] = useState<string | null>(null);
     const [showRegionSelector, setShowRegionSelector] = useState(false);
@@ -94,9 +96,9 @@ export default function BattlesPage() {
         return (
             <div className="flex flex-col items-center justify-center p-12 bg-slate-800/50 rounded-xl border border-slate-700">
                 <Swords className="w-12 h-12 text-slate-500 mb-4 animate-pulse" />
-                <p className="text-slate-400 font-medium mb-6">No active battles found. Check World Map.</p>
+                <p className="text-slate-400 font-medium mb-6">{t('battles.no_battles_found')}</p>
                 <Button onClick={() => setIsDemoMode(true)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
-                    PREVIEW NEW VFX (DEMO MODE)
+                    {t('battles.preview_vfx')}
                 </Button>
             </div>
         );
@@ -127,11 +129,11 @@ export default function BattlesPage() {
         let quality = 0;
 
         if (attackType === 'WEAPON') {
-            if (!bestWeapon && !isDemoMode) { addLog("NO_WEAPONS_AVAILABLE", "info"); return; }
+            if (!bestWeapon && !isDemoMode) { addLog(t('battles.no_weapons_available', {}, "NO_WEAPONS_AVAILABLE"), "info"); return; }
             itemId = 202;
             quality = bestWeapon?.quality || 1;
         } else if (attackType === 'MISSILE') {
-            if (!bestMissile && !isDemoMode) { addLog("NO_MISSILES_AVAILABLE", "info"); return; }
+            if (!bestMissile && !isDemoMode) { addLog(t('battles.no_missiles_available', {}, "NO_MISSILES_AVAILABLE"), "info"); return; }
             itemId = 204;
             quality = bestMissile?.quality || 1;
         }
@@ -151,7 +153,7 @@ export default function BattlesPage() {
             }
 
             setLastHit({ damage: previewDamage, side: 'attacker' });
-            addLog(`STRIKE_CONFIRMED: ${previewDamage.toLocaleString()} damage delivered`, attackType === 'MISSILE' ? 'critical' : 'hit');
+            addLog(t('battles.strike_confirmed', { damage: previewDamage.toLocaleString() }, `STRIKE_CONFIRMED: ${previewDamage.toLocaleString()} damage delivered`), attackType === 'MISSILE' ? 'critical' : 'hit');
             setTimeout(() => setLastHit(null), 1500);
         } catch (e) {
             console.error(e);
@@ -182,12 +184,12 @@ export default function BattlesPage() {
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-500/70">Terminal Active</span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-cyan-500/70">{t('battles.terminal_active')}</span>
                     </div>
                     <div className="h-4 w-px bg-slate-800" />
                     <div className="flex items-center gap-3 text-cyan-400">
                         <Target size={14} />
-                        <span className="text-xs font-bold text-slate-300 uppercase">SEC_ZONE: {activeBattle.region}</span>
+                        <span className="text-xs font-bold text-slate-300 uppercase">{t('battles.sec_zone', { region: activeBattle.region })}</span>
                     </div>
                 </div>
                 <div className="flex items-center gap-6">
@@ -196,7 +198,7 @@ export default function BattlesPage() {
                         <span className="text-sm font-mono font-bold text-cyan-100">{formatTime(activeBattle.roundEndTime || activeBattle.endTime)}</span>
                     </div>
                     <Button onClick={() => setIsDemoMode(!isDemoMode)} variant="outline" size="sm" className="h-7 text-[10px] border-cyan-500/30 text-cyan-400 uppercase">
-                        {isDemoMode ? "Exit Sim" : "Boot Sim"}
+                        {isDemoMode ? t('battles.exit_sim') : t('battles.boot_sim')}
                     </Button>
                 </div>
             </div>
@@ -207,7 +209,7 @@ export default function BattlesPage() {
                     <div className="col-span-3 flex flex-col gap-4">
                         <div className="h-[400px] bg-slate-950/40 backdrop-blur-md border border-cyan-500/10 rounded-xl p-4 flex flex-col shadow-2xl relative overflow-hidden">
                             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500/50 mb-4 flex items-center gap-2">
-                                <TrendingUp size={12} /> Strike_Feed
+                                <TrendingUp size={12} /> {t('battles.strike_feed')}
                             </h3>
                             <div className="flex-1 space-y-3 overflow-y-auto font-mono text-[10px] scrollbar-hide">
                                 <AnimatePresence mode="popLayout">
@@ -217,7 +219,7 @@ export default function BattlesPage() {
                                         </motion.div>
                                     ))}
                                 </AnimatePresence>
-                                {combatLog.length === 0 && <div className="text-slate-700 animate-pulse">Waiting for engagement...</div>}
+                                {combatLog.length === 0 && <div className="text-slate-700 animate-pulse">{t('battles.waiting_engagement')}</div>}
                             </div>
                         </div>
 
@@ -233,15 +235,15 @@ export default function BattlesPage() {
                                 <div>
                                     <div className="text-[10px] font-black uppercase flex items-center gap-2">
                                         {activeUser.username}
-                                        {COUNTRY_CONFIG[activeUser.citizenship] && <span className="text-[8px] text-cyan-500/60">({COUNTRY_CONFIG[activeUser.citizenship].name})</span>}
+                                        {COUNTRY_CONFIG[activeUser.citizenship] && <span className="text-[8px] text-cyan-500/60">({t(`countries.${activeUser.citizenship}`, {}, COUNTRY_CONFIG[activeUser.citizenship].name)})</span>}
                                     </div>
-                                    <div className="text-[9px] text-cyan-500/60 font-mono">Lvl_{activeUser.level} Operative</div>
+                                    <div className="text-[9px] text-cyan-500/60 font-mono">{t('battles.operative_rank', { level: activeUser.level })}</div>
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <StatusItem label="Strength" value={activeUser.strength.toLocaleString()} color="cyan" />
-                                <StatusItem label="Rank Exp" value={activeUser.rankPoints.toLocaleString()} color="amber" />
-                                <StatusItem label="Strike DMG" value={previewDamage.toLocaleString()} color="cyan" />
+                                <StatusItem label={t('battles.strength')} value={activeUser.strength.toLocaleString()} color="cyan" />
+                                <StatusItem label={t('battles.rank_exp')} value={activeUser.rankPoints.toLocaleString()} color="amber" />
+                                <StatusItem label={t('battles.strike_dmg')} value={previewDamage.toLocaleString()} color="cyan" />
                             </div>
                         </div>
                     </div>
@@ -257,7 +259,7 @@ export default function BattlesPage() {
 
                             <div className="absolute top-6 w-full flex justify-center z-20">
                                 <div className="px-10 py-1 bg-black/80 border-x-2 border-cyan-500 skew-x-[-20deg] shadow-[0_0_20px_rgba(6,182,212,0.3)]">
-                                    <span className="block skew-x-[20deg] text-2xl font-black italic tracking-[0.4em]">VERSUS</span>
+                                    <span className="block skew-x-[20deg] text-2xl font-black italic tracking-[0.4em]">{t('battles.versus', {}, 'VERSUS')}</span>
                                 </div>
                             </div>
 
@@ -270,7 +272,7 @@ export default function BattlesPage() {
                                         ) : (
                                             <span className="text-8xl">{getUnitVisual(activeUser.level).icon}</span>
                                         )}
-                                        <div className="absolute -bottom-2 px-4 py-0.5 bg-cyan-600 rounded-full text-[9px] font-black tracking-widest uppercase">Lvl_{activeUser.level}</div>
+                                        <div className="absolute -bottom-2 px-4 py-0.5 bg-cyan-600 rounded-full text-[9px] font-black tracking-widest uppercase">{t('battles.operative_rank', { level: activeUser.level })}</div>
                                     </div>
                                     <div className="mt-4 text-xs font-black tracking-[0.2em]">{activeUser.username}</div>
                                 </motion.div>
@@ -294,12 +296,12 @@ export default function BattlesPage() {
                                             {COUNTRY_CONFIG[activeBattle.defender as CountryId] ? (
                                                 <div className="flex flex-col items-center">
                                                     <img src={COUNTRY_CONFIG[activeBattle.defender as CountryId].flag} className="w-40 h-24 object-cover rounded-lg shadow-2xl transition-transform group-hover/enemy:scale-110" />
-                                                    <div className="mt-2 text-[10px] font-black tracking-widest text-red-500 uppercase">{COUNTRY_CONFIG[activeBattle.defender as CountryId].name}</div>
+                                                    <div className="mt-2 text-[10px] font-black tracking-widest text-red-500 uppercase">{t(`countries.${activeBattle.defender}`, {}, COUNTRY_CONFIG[activeBattle.defender as CountryId]?.name || activeBattle.defender)}</div>
                                                 </div>
                                             ) : (
                                                 <span className="text-8xl">🚜</span>
                                             )}
-                                            <div className="absolute -bottom-2 px-4 py-0.5 bg-red-600 rounded-full text-[9px] font-black tracking-widest text-white uppercase shadow-lg">Defender</div>
+                                            <div className="absolute -bottom-2 px-4 py-0.5 bg-red-600 rounded-full text-[9px] font-black tracking-widest text-white uppercase shadow-lg">{t('battles.defender_label', {}, 'Defender')}</div>
                                         </div>
                                         <div className="mt-4 text-xs font-black tracking-[0.2em] text-slate-400">{activeBattle.defender}</div>
                                     </motion.div>
@@ -314,7 +316,7 @@ export default function BattlesPage() {
                                 <div className="col-span-3 space-y-4">
                                     <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="text-[10px] font-black text-cyan-500/50 uppercase tracking-widest">Power_Core</span>
+                                            <span className="text-[10px] font-black text-cyan-500/50 uppercase tracking-widest">{t('battles.power_core', {}, 'Power_Core')}</span>
                                             <Zap size={14} className="text-yellow-400" />
                                         </div>
                                         <div className="flex items-end gap-2 mb-1">
@@ -333,7 +335,7 @@ export default function BattlesPage() {
                                     <div className="flex justify-center gap-2 p-1 bg-black/60 rounded-2xl border border-white/10">
                                         <AttackTypeButton
                                             type="BARE"
-                                            label="Hands"
+                                            label={t('battles.hands')}
                                             icon="🤜"
                                             stock={Infinity}
                                             bonus="1.0x"
@@ -342,7 +344,7 @@ export default function BattlesPage() {
                                         />
                                         <AttackTypeButton
                                             type="WEAPON"
-                                            label="Weapon"
+                                            label={t('battles.weapon')}
                                             icon="⚔️"
                                             stock={weaponStock}
                                             bonus={bestWeapon ? `Q${bestWeapon.quality}` : 'N/A'}
@@ -351,7 +353,7 @@ export default function BattlesPage() {
                                         />
                                         <AttackTypeButton
                                             type="MISSILE"
-                                            label="Missile"
+                                            label={t('battles.missile')}
                                             icon="🚀"
                                             stock={missileStock}
                                             bonus={bestMissile ? `Q${bestMissile.quality}` : 'N/A'}
@@ -369,18 +371,18 @@ export default function BattlesPage() {
                                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20" />
                                         <div className="relative flex items-center gap-4">
                                             {isFighting ? (
-                                                <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span className="text-xl font-black tracking-[0.2em] uppercase italic">Deploying...</span></>
+                                                <><div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /><span className="text-xl font-black tracking-[0.2em] uppercase italic">{t('battles.deploying_status')}</span></>
                                             ) : (
-                                                <><Swords className="w-6 h-6 animate-pulse" /><span className="text-2xl font-black tracking-[0.3em] uppercase italic">ENGAGE</span></>
+                                                <><Swords className="w-6 h-6 animate-pulse" /><span className="text-2xl font-black tracking-[0.3em] uppercase italic">{t('battles.engage_action')}</span></>
                                             )}
                                         </div>
                                     </motion.button>
                                 </div>
                                 <div className="col-span-3 space-y-4">
                                     <div className="bg-black/40 p-3 rounded-2xl border border-white/5 text-center">
-                                        <div className="text-[10px] font-black text-cyan-500/50 uppercase tracking-widest mb-1">Impact_Forecast</div>
+                                        <div className="text-[10px] font-black text-cyan-500/50 uppercase tracking-widest mb-1">{t('battles.impact_forecast')}</div>
                                         <div className="text-2xl font-black text-cyan-400 font-mono">+{previewDamage.toLocaleString()}</div>
-                                        <div className="text-[9px] font-bold text-slate-600 uppercase mt-1">Estimated Influence</div>
+                                        <div className="text-[9px] font-bold text-slate-600 uppercase mt-1">{t('battles.estimated_influence')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -391,17 +393,17 @@ export default function BattlesPage() {
                     <div className="col-span-3 flex flex-col gap-4">
                         <div className="flex-1 bg-slate-950/40 backdrop-blur-md border border-cyan-500/10 rounded-xl p-4 overflow-hidden flex flex-col shadow-2xl">
                             <div className="flex items-center gap-2 mb-6">
-                                <button onClick={() => setActiveTab('battle')} className={`text-[10px] font-black uppercase tracking-[0.2em] pb-1 border-b-2 transition-all ${activeTab === 'battle' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Live_Feed</button>
-                                <button onClick={() => setActiveTab('history')} className={`text-[10px] font-black uppercase tracking-[0.2em] pb-1 border-b-2 transition-all ${activeTab === 'history' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>Archive</button>
+                                <button onClick={() => setActiveTab('battle')} className={`text-[10px] font-black uppercase tracking-[0.2em] pb-1 border-b-2 transition-all ${activeTab === 'battle' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>{t('battles.live_feed')}</button>
+                                <button onClick={() => setActiveTab('history')} className={`text-[10px] font-black uppercase tracking-[0.2em] pb-1 border-b-2 transition-all ${activeTab === 'history' ? 'border-cyan-500 text-cyan-400' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>{t('battles.archive')}</button>
                             </div>
 
                             {activeTab === 'battle' ? (
                                 <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
                                     <div className="p-3 bg-white/5 rounded border border-white/5">
                                         <div className="flex justify-between text-[9px] font-bold text-slate-400 uppercase mb-2">
-                                            <span>Round_{activeBattle.currentRound}</span>
+                                            <span>{t('battles.round_label', { round: activeBattle.currentRound || 0 })}</span>
                                             <span className={Date.now() < (activeBattle.roundEndTime || 0) ? 'text-emerald-400' : 'text-amber-400 animate-pulse'}>
-                                                {Date.now() < (activeBattle.roundEndTime || 0) ? 'COMBAT_ACTIVE' : 'MOLA_PERIOD'}
+                                                {Date.now() < (activeBattle.roundEndTime || 0) ? t('battles.combat_active') : t('battles.mola_period')}
                                             </span>
                                         </div>
                                         <div className="h-2 bg-slate-900 rounded-full overflow-hidden flex border border-white/5">
@@ -412,13 +414,13 @@ export default function BattlesPage() {
                                             <div className="flex flex-col">
                                                 <span className="text-red-500">{activeBattle.attackerPoints || 0} PTS</span>
                                                 {activeBattle.attackerTop && (
-                                                    <span className="text-[7px] text-slate-500 font-mono">MVP: {activeBattle.attackerTop.addr.substring(0, 8)}</span>
+                                                    <span className="text-[7px] text-slate-500 font-mono">{t('battles.mvp_label', { addr: activeBattle.attackerTop.addr.substring(0, 8) })}</span>
                                                 )}
                                             </div>
                                             <div className="flex flex-col text-right">
                                                 <span className="text-blue-500">{activeBattle.defenderPoints || 0} PTS</span>
                                                 {activeBattle.defenderTop && (
-                                                    <span className="text-[7px] text-slate-500 font-mono">MVP: {activeBattle.defenderTop.addr.substring(0, 8)}</span>
+                                                    <span className="text-[7px] text-slate-500 font-mono">{t('battles.mvp_label', { addr: activeBattle.defenderTop.addr.substring(0, 8) })}</span>
                                                 )}
                                             </div>
                                         </div>
@@ -429,17 +431,17 @@ export default function BattlesPage() {
                                         <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-3 animate-pulse">
                                             <div className="flex items-center gap-2 text-amber-500">
                                                 <Clock size={16} />
-                                                <span className="text-xs font-black uppercase italic">Mola Period (1 Hour Break)</span>
+                                                <span className="text-xs font-black uppercase italic">{t('battles.mola_period_desc', {}, 'Mola Period (1 Hour Break)')}</span>
                                             </div>
                                             <p className="text-[9px] text-amber-200/60 leading-tight">
-                                                The round has ended. There is a 1-hour tactical break before the next round begins.
+                                                {t('battles.round_end_desc', {}, 'The round has ended. There is a 1-hour tactical break before the next round begins.')}
                                             </p>
                                             <Button
                                                 size="sm"
                                                 onClick={() => startNextRound(activeBattle.id)}
                                                 className="w-full h-8 bg-amber-600 hover:bg-amber-500 text-[10px] font-black uppercase tracking-widest"
                                             >
-                                                Force Start Next Round
+                                                {t('battles.force_start_round')}
                                             </Button>
                                         </div>
                                     )}
@@ -473,16 +475,16 @@ export default function BattlesPage() {
                             ) : (
                                 <div className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-hide">
                                     {(roundHistory[activeBattle.id] || []).length === 0 ? (
-                                        <div className="text-center py-20 opacity-20"><Clock className="mx-auto mb-2" size={32} /><div className="text-[10px] font-black uppercase">No Archived Data</div></div>
+                                        <div className="text-center py-20 opacity-20"><Clock className="mx-auto mb-2" size={32} /><div className="text-[10px] font-black uppercase">{t('battles.no_archived_data')}</div></div>
                                     ) : (
                                         (roundHistory[activeBattle.id] || []).map((round: any, i: number) => (
                                             <div key={i} className="p-3 bg-white/5 rounded border border-white/5 hover:border-cyan-500/30 transition-all">
                                                 <div className="flex justify-between text-[10px] font-black uppercase mb-1">
-                                                    <span>Round {round.roundNumber}</span>
-                                                    <span className={round.winnerSide === 1 ? 'text-red-500' : 'text-blue-500'}>{round.winnerSide === 1 ? 'ATTACKER' : 'DEFENDER'} WON</span>
+                                                    <span>{t('battles.round_label', { round: round.roundNumber })}</span>
+                                                    <span className={round.winnerSide === 1 ? 'text-red-500' : 'text-blue-500'}>{round.winnerSide === 1 ? t('battles.attacker_won') : t('battles.defender_won')}</span>
                                                 </div>
                                                 <div className="text-[8px] font-mono text-slate-400 uppercase mt-1">
-                                                    Hero: {round.attackerTopAddr.substring(0, 10)}...
+                                                    {t('battles.hero_label', { addr: round.attackerTopAddr.substring(0, 10) })}...
                                                 </div>
                                             </div>
                                         ))
@@ -497,30 +499,30 @@ export default function BattlesPage() {
                 <div className="bg-slate-900/40 rounded-xl border border-red-500/20 p-6 shadow-2xl backdrop-blur-md">
                     <div className="flex items-center gap-3 mb-6">
                         <Swords className="text-red-500" />
-                        <h2 className="text-xl font-bold uppercase tracking-widest text-red-100">War Council</h2>
+                        <h2 className="text-xl font-bold uppercase tracking-widest text-red-100">{t('battles.war_council')}</h2>
                         <div className="bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-[10px] font-black border border-red-500/20 uppercase">
-                            Presidential Authorization Required
+                            {t('battles.presidential_auth')}
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <p className="text-sm text-slate-400 font-medium leading-relaxed">
-                                As a leader, you have the authority to initiate military operations. Select a target country to view available regions for invasion or liberation.
+                                {t('battles.war_council_desc')}
                             </p>
                             <div className="flex flex-col gap-4 max-w-sm">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Target Country</label>
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('battles.target_country_label')}</label>
                                     <select
                                         className="w-full bg-black/40 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:border-red-500/50 transition-colors text-white"
                                         onChange={(e) => setTargetCountryForWar(Number(e.target.value))}
                                         value={targetCountryForWar || ''}
                                     >
-                                        <option value="">Select Country</option>
+                                        <option value="">{t('battles.select_country')}</option>
                                         {Object.entries(COUNTRY_IDS)
                                             .filter(([code, id]) => (id as number) !== user?.countryId)
                                             .map(([code, id]) => (
-                                                <option key={id as number} value={id as number}>{COUNTRY_CONFIG[code as CountryId].name}</option>
+                                                <option key={id as number} value={id as number}>{t(`countries.${code}`, {}, COUNTRY_CONFIG[code as CountryId].name)}</option>
                                             ))}
                                     </select>
                                 </div>
@@ -533,21 +535,21 @@ export default function BattlesPage() {
                                     disabled={!targetCountryForWar}
                                     className="h-12 bg-red-600 hover:bg-red-500 text-white font-black italic tracking-widest uppercase shadow-[0_0_20px_rgba(220,38,38,0.3)] disabled:opacity-30"
                                 >
-                                    OPEN WAR ROOM
+                                    {t('battles.open_war_room')}
                                 </Button>
                             </div>
                         </div>
 
                         <div className="bg-black/20 rounded-xl p-4 border border-white/5 space-y-3">
-                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Strategic Intelligence</h4>
+                            <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{t('battles.strategic_intel')}</h4>
                             <div className="space-y-4 font-mono text-[9px]">
                                 <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-lg">
-                                    <p className="text-red-400 font-bold mb-1 uppercase">Declaration Cost:</p>
-                                    <p className="text-slate-300">1,000,000 CRED from National Treasury</p>
+                                    <p className="text-red-400 font-bold mb-1 uppercase">{t('battles.declaration_cost')}:</p>
+                                    <p className="text-slate-300">{t('battles.declaration_cost_desc')}</p>
                                 </div>
                                 <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-lg">
-                                    <p className="text-cyan-400 font-bold mb-1 uppercase">Operation Flow:</p>
-                                    <p className="text-slate-300 italic">Declare War → Region Selection → Battle Phase (5 Rounds) → Mola System Enabled</p>
+                                    <p className="text-cyan-400 font-bold mb-1 uppercase">{t('battles.operation_flow')}:</p>
+                                    <p className="text-slate-300 italic">{t('battles.operation_flow_desc')}</p>
                                 </div>
                             </div>
                         </div>
@@ -593,7 +595,7 @@ function AttackTypeButton({ type, label, icon, stock, bonus, selected, onClick }
             <span className="text-2xl">{icon}</span>
             <span className="text-[9px] font-black uppercase tracking-tighter">{label}</span>
             <div className="flex flex-col items-center">
-                <span className={`text-[8px] font-bold ${stock === 0 ? 'text-red-500' : 'text-slate-400'}`}>Stock: {stock === Infinity ? '∞' : stock}</span>
+                <span className={`text-[8px] font-bold ${stock === 0 ? 'text-red-500' : 'text-slate-400'}`}>{useTranslation().t('battles.stock_label', { count: stock === Infinity ? '∞' : stock })}</span>
                 <span className="text-[8px] font-black text-cyan-500">{bonus}</span>
             </div>
         </button>
